@@ -1,0 +1,113 @@
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+}
+
+static def getOsArch() {
+    final String hostArch = System.getProperty("os.arch")
+
+    if (("x86" == hostArch) || ("x86_64" == hostArch)) {
+        return hostArch
+    } else if (hostArch.contains("i386")) {
+        return "x86"
+    } else if (("ia64" == hostArch) || ("amd64" == hostArch)) {
+        return "x86_64"
+    } else if ("arm" == hostArch) {
+        return "armeabi-v7a"
+    } else if ("aarch64" == hostArch) {
+        return "arm64-v8a"
+    }
+
+    return "UNSUPPORTED_HOST_ARCH"
+}
+
+android {
+    compileSdk 32
+
+    defaultConfig {
+        minSdk 22
+        targetSdk 32
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+
+        debug {
+            // debug will compile all 4 architectures
+            debuggable true
+        }
+        debugX86_32 {
+            initWith(buildTypes.debug)
+        }
+        debugX86_64 {
+            initWith(buildTypes.debug)
+        }
+        debugArm32 {
+            initWith(buildTypes.debug)
+        }
+        debugArm64 {
+            initWith(buildTypes.debug)
+        }
+    }
+
+    task buildTestLib(type: Exec) {
+        workingDir "../../"
+        commandLine "cargo", "ndk", "-t", getOsArch(), "-o", "android/platform-tls/src/androidTest/jniLibs", "build", "--features", "ffi-testing"
+    }
+
+    // Only compile the test library if this package is being built for testing by itself.
+    tasks.whenTaskAdded { task ->
+        if (gradle.rootProject.name == project.name && task.name.contains("connectedDebugAndroidTest")) {
+            task.dependsOn([buildTestLib])
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+    sourceSets {
+        main {
+            jni {
+                srcDirs 'src\\androidTest\\jni', 'src\\androidTest\\jniLibs'
+            }
+        }
+    }
+}
+
+configurations {
+    ktlint
+}
+
+task ktlint(type: JavaExec, group: "verification") {
+    description = "Check Kotlin code style."
+    main = "com.pinterest.ktlint.Main"
+    classpath = configurations.ktlint
+    args "src/**/*.kt"
+}
+
+check.dependsOn ktlint
+
+task ktlintFormat(type: JavaExec, group: "formatting") {
+    description = "Fix Kotlin code style deviations."
+    main = "com.pinterest.ktlint.Main"
+    classpath = configurations.ktlint
+    args "-F", "src/**/*.kt"
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.8.0'
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.3'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+
+    ktlint 'com.pinterest:ktlint:0.46.1'
+}
