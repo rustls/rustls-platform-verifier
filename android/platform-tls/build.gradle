@@ -37,20 +37,7 @@ android {
         }
 
         debug {
-            // debug will compile all 4 architectures
             debuggable true
-        }
-        debugX86_32 {
-            initWith(buildTypes.debug)
-        }
-        debugX86_64 {
-            initWith(buildTypes.debug)
-        }
-        debugArm32 {
-            initWith(buildTypes.debug)
-        }
-        debugArm64 {
-            initWith(buildTypes.debug)
         }
     }
 
