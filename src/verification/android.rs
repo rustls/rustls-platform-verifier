@@ -12,7 +12,7 @@ use super::{
 use crate::android::{with_context, CachedClass};
 
 static CERT_VERIFIER_CLASS: CachedClass =
-    CachedClass::new("com/onepassword/platform_tls/CertificateVerifier");
+    CachedClass::new("com/onepassword/rustls_platform_verifier/CertificateVerifier");
 
 // Find the `ByteArray (Uint8 [])` class.
 static BYTE_ARRAY_CLASS: CachedClass = CachedClass::new("[B");
@@ -157,7 +157,7 @@ impl Verifier {
                 'J',
                 "[[B",
                 ')',
-                "Lcom/onepassword/platform_tls/VerificationResult;"
+                "Lcom/onepassword/rustls_platform_verifier/VerificationResult;"
             );
 
             let result = env

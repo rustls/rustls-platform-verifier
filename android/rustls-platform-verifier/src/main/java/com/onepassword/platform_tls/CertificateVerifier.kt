@@ -1,4 +1,4 @@
-package com.onepassword.platform_tls // ktlint-disable package-name
+package com.onepassword.rustls_platform_verifier // ktlint-disable package-name
 
 import android.content.Context
 import android.net.http.X509TrustManagerExtensions
@@ -54,7 +54,7 @@ private class VerificationResult(
 // Internal for test code - no other Kotlin code should use this object directly.
 @Suppress("unused")
 internal object CertificateVerifier {
-    private const val TAG = "platform-tls-android"
+    private const val TAG = "rustls-platform-verifier-android"
 
     private fun createTrustManager(keystore: KeyStore?): X509TrustManagerExtensions? {
         // This can never throw since the default algorithm is used.

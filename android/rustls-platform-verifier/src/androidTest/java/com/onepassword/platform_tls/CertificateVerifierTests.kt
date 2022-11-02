@@ -1,4 +1,4 @@
-package com.onepassword.platform_tls // ktlint-disable package-name
+package com.onepassword.rustls_platform_verifier // ktlint-disable package-name
 
 import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -27,7 +27,7 @@ class CertificateVerifierTests {
         @BeforeClass
         @JvmStatic
         fun init() {
-            System.loadLibrary("platform_tls")
+            System.loadLibrary("rustls_platform_verifier")
         }
     }
 

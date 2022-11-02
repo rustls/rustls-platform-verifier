@@ -53,7 +53,9 @@ impl Global {
 }
 
 fn global() -> &'static Global {
-    GLOBAL.get().expect("Expect platform-tls to be initialized")
+    GLOBAL
+        .get()
+        .expect("Expect rustls-platform-verifier to be initialized")
 }
 
 /// Initializes and stores the required context for the Android platform.

@@ -37,7 +37,7 @@ pub use tests::ffi::*;
 /// #[tokio::main]
 /// async fn main() {
 ///     let client = ClientBuilder::new()
-///         .use_preconfigured_tls(platform_tls::tls_config())
+///         .use_preconfigured_tls(rustls_platform_verifier::tls_config())
 ///         .build()
 ///         .expect("nothing should fail");
 ///

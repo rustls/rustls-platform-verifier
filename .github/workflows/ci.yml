@@ -125,7 +125,7 @@ jobs:
           retention-days: 7
           path: |
             emulator.log
-            /Users/runner/work/platform-tls/platform-tls/android/platform-tls/build/outputs/androidTest-results/connected/test-result.pb
+            /Users/runner/work/rustls-platform-verifier/rustls-platform-verifier/android/rustls-platform-verifier/build/outputs/androidTest-results/connected/test-result.pb
 
       # TODO: Test iOS in CI too.
 
