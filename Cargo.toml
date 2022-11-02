@@ -1,10 +1,10 @@
 [package]
-name = "platform-tls"
+name = "rustls-platform-verifier"
 version = "0.1.0"
 authors = ["ComplexSpaces <complexspacescode@gmail.com>", "1Password"]
-description = "platform-tls supports verifying TLS certificates in rustls with the operating system verifier"
+description = "rustls-platform-verifier supports verifying TLS certificates in rustls with the operating system verifier"
 keywords = ["tls", "certificate", "verification", "os", "native"]
-repository = "https://github.com/1Password/platform-tls"
+repository = "https://github.com/1Password/rustls-platform-verifier"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 rust-version = "1.56"
@@ -18,7 +18,7 @@ exclude = [
 ]
 
 [lib]
-name = "platform_tls"
+name = "rustls_platform_verifier"
 # Note: The `cdylib` specification is for testing only. The shared library
 # is not expected to have a stable API.
 crate-type = ["cdylib", "rlib"]

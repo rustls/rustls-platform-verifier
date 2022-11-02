@@ -1,8 +1,8 @@
 //! This build script, optionally, handles generating a local copy of the
-//! `platform-tls` Android gradle component.
+//! `rustls-platform-verifier` Android gradle component.
 //!
-//! When `PLATFORM_TLS_GEN_ANDROID_SRC` is set, it will copy the bundled Kotlin
-//! sources into `$TARGET_DIR/platform-tls/android`.
+//! When `RUSTLS_PLATFORM_VERIFIER_GEN_ANDROID_SRC` is set, it will copy the bundled Kotlin
+//! sources into `$TARGET_DIR/rustls-platform-verifier/android`.
 //!
 //! This must be done in a build script because `cargo` doesn't support running
 //! binaries from dependency packages (outside the workspace).
@@ -12,7 +12,7 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const ANDROID_SRC_GEN: &str = "PLATFORM_TLS_GEN_ANDROID_SRC";
+const ANDROID_SRC_GEN: &str = "RUSTLS_PLATFORM_VERIFIER_GEN_ANDROID_SRC";
 
 fn main() {
     // Always rerun this script if the variable changed, regardless of the output files.
@@ -26,7 +26,9 @@ fn main() {
     }
 
     let manifest_dir = std::env::current_dir().unwrap();
-    let android_src = manifest_dir.join("android").join("platform-tls");
+    let android_src = manifest_dir
+        .join("android")
+        .join("rustls-platform-verifier");
 
     // In order to have a deterministic path to declare in `build.gradle`, we
     // write the files to the parent target directory.
@@ -46,7 +48,7 @@ fn main() {
         PathBuf::from,
     );
 
-    let dest = target_dir.join("platform-tls").join("android");
+    let dest = target_dir.join("rustls-platform-verifier").join("android");
 
     fs::create_dir_all(&dest).unwrap();
     copy_dir(&android_src, &dest);

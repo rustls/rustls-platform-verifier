@@ -43,7 +43,7 @@ android {
 
     task buildTestLib(type: Exec) {
         workingDir "../../"
-        commandLine "cargo", "ndk", "-t", getOsArch(), "-o", "android/platform-tls/src/androidTest/jniLibs", "build", "--features", "ffi-testing"
+        commandLine "cargo", "ndk", "-t", getOsArch(), "-o", "android/rustls-platform-verifier/src/androidTest/jniLibs", "build", "--features", "ffi-testing"
     }
 
     // Only compile the test library if this package is being built for testing by itself.

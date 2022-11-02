@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "platform-tls"
-include ':platform-tls'
+rootProject.name = "rustls-platform-verifier"
+include ':rustls-platform-verifier'
