@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-echo 'this script only update 1password_com_valid_1.crt.'
+echo 'This script only updates 1password_com_valid_1.crt'
 echo 'It can likely be extended to download the whole chain.'
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
