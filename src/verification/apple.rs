@@ -27,15 +27,13 @@ fn system_time_to_cfdate(time: SystemTime) -> Result<CFDate, TlsError> {
 
     // Convert a system timestamp based off the UNIX epoch into the
     // Apple epoch used by all `CFAbsoluteTime` values.
-
-    let since_unix_epoch = time
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .map_err(|_| TlsError::FailedToGetCurrentTime)?;
-
-    let since_apple_epoch = since_unix_epoch - unix_adjustment;
-
+    // Subtracting Durations with sub() will panic on overflow
     #[allow(clippy::as_conversions)]
-    Ok(CFDate::new(since_apple_epoch.as_secs() as f64))
+    time.duration_since(SystemTime::UNIX_EPOCH)
+        .map_err(|_| TlsError::FailedToGetCurrentTime)?
+        .checked_sub(unix_adjustment)
+        .ok_or(TlsError::FailedToGetCurrentTime)
+        .map(|epoch| CFDate::new(epoch.as_secs() as f64))
 }
 
 #[derive(Default)]
