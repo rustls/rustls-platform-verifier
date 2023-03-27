@@ -54,37 +54,40 @@ Gradle project, with a filename of `init.gradle`. This is generally placed in yo
 
 ```groovy
 apply from: file("./init.gradle");
-configurePlatformVerifierProject()
-
-// includeFlat is not deprecated, see https://github.com/gradle/gradle/issues/18644#issuecomment-980037131 for more details.
-//noinspection GrDeprecatedAPIUsage
-includeFlat("rustls-platform-verifier")
-
-// Note: This path is dependent on where your workspace's target path.
-project(":rustls-platform-verifier").projectDir = file("$rootDir/../target/rustls-platform-verifier/android/")
+// Cargo automatically handles finding the downloaded crate in the correct location
+// for your project.
+def veifierProjectPath = findRustlsPlatformVerifierProject()
+includeBuild("${verifierProjectPath}/android/")
 ```
 
-Next, the `rustls-platform-verifier` external dependency needs to be setup. Open the `init.gradle` file and add the following, where
-`$PATH_TO_ROOT` is replaced with a directory navigation to where your project's `Cargo.toml` is located (ie; `"../"`):
+Next, the `rustls-platform-verifier` external dependency needs to be setup. Open the `init.gradle` file and add the following:
+`$PATH_TO_DEPENDENT_CRATE` is the relative path to the Cargo manifest (`Cargo.toml`) of any crate in your workspace that depends on `rustls-platform-verifier`
+from the location of your `init.gradle` file.
+
+Alternatively, you can use `cmdProcessBuilder.directory(File("PATH_TO_ROOT"))` to change the working directory instead.
 
 ```groovy
-ext.configurePlatformVerifierProject = {
-    def cmdProcessBuilder = new ProcessBuilder(new String[] { "cargo", "check", "-p", "rustls-platform-verifier" })
-    cmdProcessBuilder.directory(File("$PATH_TO_ROOT"))
-    cmdProcessBuilder.environment().put("RUSTLS_PLATFORM_VERIFIER_GEN_ANDROID_SRC", "1")
+ext.findRustlsPlatformVerifierProject = {
+    def cmdProcessBuilder = new ProcessBuilder(new String[] { "cargo", "metadata", "--format-version", "1", "--manifest-path", "$PATH_TO_DEPENDENT_CRATE" })
+    def dependencyInfoText = new StringBuffer()
 
     def cmdProcess = cmdProcessBuilder.start()
-
+    cmdProcess.consumeProcessOutput(dependencyInfoText, null)
     cmdProcess.waitFor()
+
+    def dependencyJson = new groovy.json.JsonSlurper().parseText(dependencyInfoText.toString())
+    def manifestPath = file(dependencyJson.packages.find { it.name == "rustls-platform-verifier" }.manifest_path)
+    return manifestPath.parent
 }
 ```
 
-This script can be tweaked as best suits your project, but the `cargo check` invocation must be included.
+This script can be tweaked as best suits your project, but the `cargo metadata` invocation must be included so that the Android
+implementation source can be located on disk.
 
-Finally, sync your gradle project changes. It should pick up on the `rustls-platform-verifier` Gradle project and, 
-if you look in `./target/rustls-platform-verifier`, there should be an `android` folder containing the required Kotlin sources. 
-After this, everything should be ready to use.Future updates of `rustls-platform-verifier` shouldn't need anything 
-beyond the usual `cargo update` either.
+Finally, sync your gradle project changes. It should pick up on the `rustls-platform-verifier` Gradle project. It should finish
+successfully, resulting in a `rustls` group appearing in Android Studio's project view.
+After this, everything should be ready to use. Future updates of `rustls-platform-verifier` won't need any maintenance beyond the
+expected `cargo update`.
 
 #### Crate initialization
 
