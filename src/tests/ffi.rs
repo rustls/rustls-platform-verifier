@@ -1,5 +1,6 @@
 //! Thin wrappers ontop the existing test suites that allow them to be ran
 //! in the context of a platform-native environment as required by the verifier implementation.
+#![allow(missing_docs)]
 
 #[cfg(target_os = "android")]
 pub use android::*;
