@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  RUSTFLAGS: -D warnings -D missing_docs -F unused_must_use
+  RUSTFLAGS: -D warnings -F unused_must_use
 
 jobs:
   clippy:

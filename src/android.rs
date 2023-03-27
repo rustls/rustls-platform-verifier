@@ -7,9 +7,19 @@ use once_cell::sync::OnceCell;
 
 static GLOBAL: OnceCell<Global> = OnceCell::new();
 
+/// A layer to access the Android runtime which is hosting the current
+/// application process.
+///
+/// Generally this trait should be implemented in your Rust app component's FFI
+/// initialization layer.
 pub trait Runtime: Send + Sync {
+    /// Returns a handle to the current process' JVM.
     fn java_vm(&self) -> &JavaVM;
+    /// Returns a reference to the current app's [Context].
+    ///
+    /// [Context]: <https://developer.android.com/reference/android/content/Context>
     fn context(&self) -> &GlobalRef;
+    /// Returns a reference to the class returned by the current JVM's `getClassLoader` call.
     fn class_loader(&self) -> &GlobalRef;
 }
 
