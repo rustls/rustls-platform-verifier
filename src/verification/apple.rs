@@ -1,7 +1,8 @@
-use super::{error_messages, invalid_certificate, log_server_cert, unsupported_server_name};
+use super::{log_server_cert, unsupported_server_name};
+use crate::verification::invalid_certificate;
 use core_foundation::date::CFDate;
 use core_foundation_sys::date::kCFAbsoluteTimeIntervalSince1970;
-use rustls::{client::ServerCertVerifier, Error as TlsError};
+use rustls::{client::ServerCertVerifier, CertificateError, Error as TlsError};
 use security_framework::{
     certificate::SecCertificate, policy::SecPolicy, secure_transport::SslProtocolSide,
     trust::SecTrust,
@@ -72,7 +73,8 @@ impl Verifier {
         let certificates: Vec<SecCertificate> = std::iter::once(end_entity.0.as_slice())
             .chain(intermediates.iter().map(|cert| cert.0.as_slice()))
             .map(|cert| {
-                SecCertificate::from_der(cert).map_err(|_| TlsError::InvalidCertificateEncoding)
+                SecCertificate::from_der(cert)
+                    .map_err(|_| TlsError::InvalidCertificate(CertificateError::BadEncoding))
             })
             .collect::<Result<Vec<SecCertificate>, _>>()?;
 
@@ -101,13 +103,13 @@ impl Verifier {
         let now = system_time_to_cfdate(now)?;
         trust_evaluation
             .set_trust_verify_date(&now)
-            .map_err(|e| TlsError::InvalidCertificateData(e.to_string()))?;
+            .map_err(|e| invalid_certificate(e.to_string()))?;
 
         // If we have OCSP response data, make sure the system makes use of it.
         if let Some(ocsp_response) = ocsp_response {
             trust_evaluation
                 .set_trust_ocsp_response(std::iter::once(ocsp_response))
-                .map_err(|e| TlsError::InvalidCertificateData(e.to_string()))?;
+                .map_err(|e| invalid_certificate(e.to_string()))?;
         }
 
         // When testing, support using fake roots and ignoring values present on the system.
@@ -153,17 +155,25 @@ impl Verifier {
             .map_err(|_| ())
             .and_then(|code| {
                 // Only map the errors we need for tests.
-                Ok(invalid_certificate(match code {
-                    errors::errSecHostNameMismatch => error_messages::WRONG_NAME,
-                    errors::errSecCreateChainFailed => error_messages::UNKNOWN_CERT,
-                    errors::errSecInvalidExtendedKeyUsage => error_messages::INVALID_EXTENSIONS,
-                    errors::errSecCertificateRevoked => error_messages::REVOKED,
-                    _ => return Err(()),
-                }))
+                match code {
+                    errors::errSecHostNameMismatch => Ok(TlsError::InvalidCertificate(
+                        CertificateError::NotValidForName,
+                    )),
+                    errors::errSecCreateChainFailed => Ok(TlsError::InvalidCertificate(
+                        CertificateError::UnknownIssuer,
+                    )),
+                    errors::errSecInvalidExtendedKeyUsage => Ok(TlsError::InvalidCertificate(
+                        CertificateError::Other(std::sync::Arc::new(super::EkuError)),
+                    )),
+                    errors::errSecCertificateRevoked => {
+                        Ok(TlsError::InvalidCertificate(CertificateError::Revoked))
+                    }
+                    _ => Err(()),
+                }
             })
             // Fallback to an error containing the description and specific error code so that
             // the exact error cause can be looked up easily.
-            .unwrap_or_else(|_| invalid_certificate(format!("{} ({})", trust_error, err_code)));
+            .unwrap_or_else(|_| invalid_certificate(format!("{}: {}", trust_error, err_code)));
 
         Err(err)
     }

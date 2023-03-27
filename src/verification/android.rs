@@ -3,13 +3,13 @@ use jni::{
     strings::JavaStr,
     JNIEnv,
 };
-use rustls::{client::ServerCertVerifier, Error as TlsError};
+use rustls::Error::InvalidCertificate;
+use rustls::{client::ServerCertVerifier, CertificateError, Error as TlsError};
 use std::time::SystemTime;
 
-use super::{
-    error_messages, invalid_certificate, log_server_cert, unsupported_server_name, ALLOWED_EKUS,
-};
+use super::{log_server_cert, unsupported_server_name, ALLOWED_EKUS};
 use crate::android::{with_context, CachedClass};
+use crate::verification::invalid_certificate;
 
 static CERT_VERIFIER_CLASS: CachedClass =
     CachedClass::new("com/onepassword/rustls_platform_verifier/CertificateVerifier");
@@ -191,30 +191,34 @@ impl Verifier {
                         // If everything else was OK, check the hostname.
                         let cert = webpki::EndEntityCert::try_from(end_entity.as_ref())
                             .map_err(pki_name_error)?;
-                        // This unwrap can't fail since it was already validated before.
-                        let name = webpki::DnsNameRef::try_from_ascii_str(server_name).unwrap();
-                        if cert.verify_is_valid_for_dns_name(name).is_ok() {
+                        let name = webpki::SubjectNameRef::DnsName(
+                            // This unwrap can't fail since it was already validated before.
+                            webpki::DnsNameRef::try_from_ascii_str(server_name).unwrap(),
+                        );
+                        if cert.verify_is_valid_for_subject_name(name).is_ok() {
                             Ok(())
                         } else {
-                            Err(invalid_certificate(error_messages::WRONG_NAME))
+                            Err(InvalidCertificate(CertificateError::NotValidForName))
                         }
                     }
                     VerifierStatus::Unavailable => Err(TlsError::General(String::from(
                         "No system trust stores available",
                     ))),
-                    VerifierStatus::Expired => Err(invalid_certificate(error_messages::EXPIRED)),
+                    VerifierStatus::Expired => Err(InvalidCertificate(CertificateError::Expired)),
                     VerifierStatus::UnknownCert => {
                         log::warn!("certificate was not trusted: {}", maybe_msg.unwrap());
-                        Err(invalid_certificate(error_messages::UNKNOWN_CERT))
+                        Err(InvalidCertificate(CertificateError::UnknownIssuer))
                     }
                     VerifierStatus::Revoked => {
                         log::warn!("certificate was revoked: {}", maybe_msg.unwrap());
-                        Err(invalid_certificate(error_messages::REVOKED))
+                        Err(InvalidCertificate(CertificateError::Revoked))
                     }
-                    VerifierStatus::InvalidEncoding => Err(TlsError::InvalidCertificateEncoding),
-                    VerifierStatus::InvalidExtension => {
-                        Err(invalid_certificate(error_messages::INVALID_EXTENSIONS))
+                    VerifierStatus::InvalidEncoding => {
+                        Err(InvalidCertificate(CertificateError::BadEncoding))
                     }
+                    VerifierStatus::InvalidExtension => Err(InvalidCertificate(
+                        CertificateError::Other(std::sync::Arc::new(super::EkuError)),
+                    )),
                 }
             }
             Err(e) => Err(TlsError::General(format!(
@@ -256,8 +260,8 @@ fn extract_result_info(env: &JNIEnv<'_>, result: JObject<'_>) -> (VerifierStatus
 fn pki_name_error(error: webpki::Error) -> TlsError {
     use webpki::Error::*;
     match error {
-        BadDer | BadDerTime => TlsError::InvalidCertificateEncoding,
-        e => TlsError::InvalidCertificateData(format!("invalid peer certificate: {}", e)),
+        BadDer | BadDerTime => InvalidCertificate(CertificateError::BadEncoding),
+        e => invalid_certificate(format!("invalid peer certificate: {}", e)),
     }
 }
 

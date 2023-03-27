@@ -42,8 +42,8 @@
 //! Thus we don't expect these tests to be flaky w.r.t. that, except for
 //! potentially poor performance.     
 use super::TestCase;
-use crate::verification::error_messages;
-use rustls::Error as TlsError;
+use crate::tests::assert_cert_error_eq;
+use rustls::{CertificateError, Error as TlsError};
 use std::convert::TryFrom;
 
 const SHARED_CHAIN: &[&[u8]] = &[
@@ -113,7 +113,13 @@ macro_rules! real_world_test_cases {
     }
 }
 
-fn real_world_test(test_case: &TestCase) {
+macro_rules! no_error {
+    () => {
+        None::<std::convert::Infallible>
+    };
+}
+
+fn real_world_test<E: std::error::Error>(test_case: &TestCase<E>) {
     log::info!("verifying {:?}", test_case.expected_result);
 
     let verifier = crate::verifier_for_testing();
@@ -141,18 +147,11 @@ fn real_world_test(test_case: &TestCase) {
         )
         .map(|_| ());
 
-    // Note: Linux is special-cased becuse it uses the defaukt `webpki` verifier, meaning
-    // that we have no control over the error strings used.
-    if test_case.expected_result.is_err() && cfg!(target_os = "linux") {
-        assert_eq!(
-            result,
-            Err(TlsError::InvalidCertificateData(String::from(
-                "invalid peer certificate: CertNotValidForName"
-            )))
-        )
-    } else {
-        assert_eq!(result.map(|_| ()), test_case.expected_result);
-    }
+    assert_cert_error_eq(
+        &result.map(|_| ()),
+        &test_case.expected_result,
+        None::<&std::convert::Infallible>,
+    );
     // TODO: get into specifics of errors returned when it fails.
 }
 
@@ -165,6 +164,7 @@ real_world_test_cases! {
         chain: VALID_1PASSWORD_COM_CHAIN,
         stapled_ocsp: None,
         expected_result: Ok(()),
+        other_error: no_error!(),
     },
     // Same as above but without stapled OCSP.
     my_1password_com_valid_no_stapled => TestCase {
@@ -172,6 +172,7 @@ real_world_test_cases! {
         chain: VALID_1PASSWORD_COM_CHAIN,
         stapled_ocsp: None,
         expected_result: Ok(()),
+        other_error: no_error!(),
     },
     // Valid also for 1password.com (no subdomain).
     _1password_com_valid => TestCase {
@@ -179,13 +180,15 @@ real_world_test_cases! {
         chain: VALID_1PASSWORD_COM_CHAIN,
         stapled_ocsp: None,
         expected_result: Ok(()),
+        other_error: no_error!(),
     },
     // The certificate isn't valid for an unrelated subdomain.
     unrelated_domain_invalid => TestCase {
         reference_id: VALID_UNRELATED_DOMAIN,
         chain: VALID_1PASSWORD_COM_CHAIN,
         stapled_ocsp: None,
-        expected_result: Err(TlsError::InvalidCertificateData(String::from(error_messages::WRONG_NAME))),
+        expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
+        other_error: no_error!(),
     },
     // The certificate chain for the unrelated domain is valid for that
     // unrelated domain.
@@ -194,6 +197,7 @@ real_world_test_cases! {
         chain: VALID_UNRELATED_CHAIN,
         stapled_ocsp: None,
         expected_result: Ok(()),
+        other_error: no_error!(),
     },
     // The certificate chain for the unrelated domain is not valid for
     // my.1password.com.
@@ -201,7 +205,8 @@ real_world_test_cases! {
         reference_id: MY_1PASSWORD_COM,
         chain: VALID_UNRELATED_CHAIN,
         stapled_ocsp: None,
-        expected_result: Err(TlsError::InvalidCertificateData(String::from(error_messages::WRONG_NAME))),
+        expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
+        other_error: no_error!(),
     },
 
     // OCSP stapling works.
