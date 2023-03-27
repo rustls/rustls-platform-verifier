@@ -37,7 +37,7 @@ cert-logging = ["base64"]
 docsrs = ["jni", "once_cell"]
 
 [dependencies]
-rustls = { version = "0.20", features = ["dangerous_configuration", "tls12", "logging"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "tls12", "logging"] }
 log = { version = "0.4" }
 base64 = { version = "0.13", optional = true } # Only used when the `cert-logging` feature is enabled.
 jni = { version = "0.19", default-features = false, optional = true } # Only used during doc generation
@@ -46,17 +46,18 @@ once_cell = { version = "1.9", optional = true } # Only used during doc generati
 [target.'cfg(target_os = "linux")'.dependencies]
 rustls-native-certs = "0.6"
 once_cell = "1.9"
-webpki-roots = "0.22" # Augmentation to `openssl-probe` due to inconsistencies on Linux distros.
+webpki-roots = "0.23" # Augmentation to `openssl-probe` due to inconsistencies on Linux distros.
+webpki = { package = "rustls-webpki", version = "0.100.0", features = ["alloc", "std"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = { version = "0.19", default-features = false }
-webpki = "0.22"
+webpki = { package = "rustls-webpki", version = "0.100.0", features = ["alloc", "std"] }
 once_cell = "1.9"
 android_logger = { version = "0.11", optional = true } # Only used during testing.
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 once_cell = "1.9"
-webpki-roots = "0.22"
+webpki-roots = "0.23"
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 core-foundation = "0.9"
@@ -69,7 +70,7 @@ winapi = { version = "0.3", features = ["wincrypt", "winerror"] }
 
 [dev-dependencies]
 tokio = { version = "1.5", features = ["macros", "rt-multi-thread"] }
-reqwest = { version = "0.11", default-features = false, features = ["rustls-tls-manual-roots"] }
+reqwest = { version = "0.11.18", default-features = false, features = ["rustls-tls-manual-roots"] }
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]

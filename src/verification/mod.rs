@@ -22,28 +22,19 @@ mod windows;
 #[cfg(windows)]
 pub use windows::Verifier;
 
-#[cfg(any(windows, target_os = "android", target_os = "macos", target_os = "ios"))]
-/// Error messages for errors that are the same across non-WebPKI verification platforms.
-pub mod error_messages {
-    pub const INVALID_EXTENSIONS: &str = "certificate had invalid extensions";
-    #[allow(dead_code)] // Not used on Apple platforms yet.
-    pub const EXPIRED: &str = "certificate has expired";
-    pub const UNKNOWN_CERT: &str = "no trust chain found for certificate";
-    pub const WRONG_NAME: &str = "certificate CN does not match the provided name";
-    pub const REVOKED: &str = "certificate has been revoked";
+/// An EKU was invalid for the use case of verifying a server certificate.
+///
+/// This error is used primarily for tests.
+#[derive(Debug, PartialEq)]
+pub(crate) struct EkuError;
+
+impl std::fmt::Display for EkuError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("certificate had invalid extensions")
+    }
 }
 
-#[cfg(all(any(test, feature = "ffi-testing"), target_os = "linux"))]
-/// Error messages for WebPKI verification platforms (used only for testing).
-pub mod error_messages {
-    pub const INVALID_EXTENSIONS: &str = "invalid peer certificate: RequiredEkuNotFound"; // Specific to current test case.
-    #[allow(dead_code)] // Not covered by test cases yet, due to lack of support on Apple platforms.
-    pub const EXPIRED: &str = "certificate has expired";
-    pub const UNKNOWN_CERT: &str = "invalid peer certificate: UnknownIssuer";
-    pub const WRONG_NAME: &str = "invalid peer certificate: CertNotValidForName";
-    #[allow(dead_code)] // Not supported by `WebPkiVerifier` yet.
-    pub const REVOKED: &str = "certificate has been revoked";
-}
+impl std::error::Error for EkuError {}
 
 // Log the certificate we are verifying so that we can try and find what may be wrong with it
 // if we need to debug a user's situation.
@@ -58,10 +49,13 @@ fn unsupported_server_name() -> rustls::Error {
     rustls::Error::UnsupportedNameType
 }
 
-// Certificate data error shorthand
+// Unknown certificate error shorthand. Used when we need to construct an "Other" certificate
+// error with a platform specific error message.
 #[cfg(any(windows, target_os = "android", target_os = "macos", target_os = "ios"))]
 fn invalid_certificate(reason: impl Into<String>) -> rustls::Error {
-    rustls::Error::InvalidCertificateData(reason.into())
+    rustls::Error::InvalidCertificate(rustls::CertificateError::Other(std::sync::Arc::from(
+        Box::from(reason.into()),
+    )))
 }
 
 #[cfg(any(windows, target_os = "android"))]
