@@ -61,16 +61,26 @@ impl Verifier {
         match rustls_native_certs::load_native_certs() {
             Ok(certs) => {
                 let certs: Vec<Vec<u8>> = certs.into_iter().map(|c| c.0).collect();
-                let ignored = root_store.add_parsable_certificates(&certs).1;
+                let (added, ignored) = root_store.add_parsable_certificates(&certs);
 
                 if ignored != 0 {
                     log::warn!("Some CA root certificates were ignored due to errors");
                 }
 
+                // While we load webpki-roots anyway, this can be helpful to know for troubleshooting.
                 if root_store.is_empty() {
-                    log::error!("No CA certificates were valid, falling back to WebPKI roots");
-                    load_webpki_roots(&mut root_store);
+                    log::error!("No CA certificates were loaded from the system");
                 }
+
+                // Finding TLS roots on Linux is not reliable enough to always depend on it
+                // across various distributions. Instead, we always load the WebPKI roots in
+                // addition so that a valid trust anchor is more likely to be available.
+                load_webpki_roots(&mut root_store);
+
+                log::debug!(
+                    "Loaded WebPKI roots in addition to {} roots from the system",
+                    added
+                );
             }
             Err(err) => {
                 // This only contains a path to a system directory:
