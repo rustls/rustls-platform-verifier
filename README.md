@@ -84,6 +84,18 @@ ext.findRustlsPlatformVerifierProject = {
 This script can be tweaked as best suits your project, but the `cargo metadata` invocation must be included so that the Android
 implementation source can be located on disk.
 
+If your project often updates its Android Gradle Plugin versions, you should additionally consider setting your app's project
+up to override `rustls-platform-verifier`'s dependency versions. This allows your app to control what versions are used and avoid
+conflicts. To do so, advertise a `versions.path` system property from your `settings.gradle`:
+
+```groovy
+ext.setVersionsPath = {
+    System.setProperty("versions.path", file("your/versions/path.toml").absolutePath)
+}
+
+setVersionsPath()
+```
+
 Finally, sync your gradle project changes. It should pick up on the `rustls-platform-verifier` Gradle project. It should finish
 successfully, resulting in a `rustls` group appearing in Android Studio's project view.
 After this, everything should be ready to use. Future updates of `rustls-platform-verifier` won't need any maintenance beyond the

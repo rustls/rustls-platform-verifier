@@ -11,6 +11,22 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
     }
+
+    // We use a version catalog for two reasons:
+    // 1. Ease of dependency management
+    // 2. Supporting having our versions overridden by a larger project including us
+    // as a composite build. This lets versions stay in sync when they would otherwise become
+    // incompatible. Examples of this include AGP, where an actual app might have a newer one
+    // then this library (which doesn't need to).
+    //
+    // This works by first trying to read global property that a parent module could advertise
+    // and then falling back to our local definitions. In combination, both project-local tasks
+    // still work as intended and use as a library in a full application.
+    versionCatalogs {
+        libs {
+            from(files(System.getProperty("versions.path", "gradle/libraries.versions.toml")))
+        }
+    }
 }
 rootProject.name = "rustls"
 include ':rustls-platform-verifier'
