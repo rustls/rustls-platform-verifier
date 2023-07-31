@@ -76,7 +76,7 @@ mod android {
         .unwrap()
     }
 
-    #[export_name = "Java_com_onepassword_rustls_1platform_1verifier_CertificateVerifierTests_mockTests"]
+    #[export_name = "Java_rustls_platformverifier_android_CertificateVerifierTests_mockTests"]
     pub extern "C" fn rustls_platform_verifier_mock_test_suite(
         env: JNIEnv,
         _class: JClass,
@@ -93,7 +93,7 @@ mod android {
         .into_inner()
     }
 
-    #[export_name = "Java_com_onepassword_rustls_1platform_1verifier_CertificateVerifierTests_verifyMockRootUsage"]
+    #[export_name = "Java_rustls_platformverifier_android_CertificateVerifierTests_verifyMockRootUsage"]
     pub extern "C" fn rustls_platform_verifier_verify_mock_root_usage(
         env: JNIEnv,
         _class: JClass,
@@ -110,7 +110,7 @@ mod android {
         .into_inner()
     }
 
-    #[export_name = "Java_com_onepassword_rustls_1platform_1verifier_CertificateVerifierTests_realWorldTests"]
+    #[export_name = "Java_rustls_platformverifier_android_CertificateVerifierTests_realWorldTests"]
     pub extern "C" fn rustls_platform_verifier_real_world_test_suite(
         env: JNIEnv,
         _class: JClass,
