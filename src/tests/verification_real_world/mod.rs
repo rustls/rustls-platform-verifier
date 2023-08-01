@@ -49,6 +49,8 @@ use std::convert::TryFrom;
 const SHARED_CHAIN: &[&[u8]] = &[
     include_bytes!("1password_com_valid_2.crt"),
     include_bytes!("1password_com_valid_3.crt"),
+    // XXX: This certificate is included for testing in environments that might need
+    // a cross-signed root certificate instead of the just the server-provided one.
     include_bytes!("1password_com_valid_4.crt"),
 ];
 
