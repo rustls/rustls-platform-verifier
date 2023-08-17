@@ -1,5 +1,6 @@
 package org.rustls.platformverifier
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.http.X509TrustManagerExtensions
 import android.os.Build
@@ -53,6 +54,8 @@ private class VerificationResult(
 // Only JNI and test code calls this, so unused code warnings are suppressed.
 // Internal for test code - no other Kotlin code should use this object directly.
 @Suppress("unused")
+// We want to show a difference between Kotlin-side logs and those in Rust code
+@SuppressLint("LongLogTag")
 internal object CertificateVerifier {
     private const val TAG = "rustls-platform-verifier-android"
 
@@ -161,7 +164,7 @@ internal object CertificateVerifier {
 
     @get:Synchronized
     private var systemCertificateDirectory: File? = System.getenv("ANDROID_ROOT")?.let { rootPath ->
-        File(rootPath + "/etc/security/cacerts")
+        File("$rootPath/etc/security/cacerts")
     }
 
     @get:Synchronized
@@ -196,7 +199,7 @@ internal object CertificateVerifier {
             certificateChain.add(certificate as X509Certificate)
         }
 
-        // Will never throw `ArrayIndexOutOfBoundsException` because `rustls`'s `ServerCertVerifer` trait
+        // Will never throw `ArrayIndexOutOfBoundsException` because `rustls`'s `ServerCertVerifier` trait
         // has a mandatory `end_entity` parameter in `verify_server_cert`.
         val endEntity = certificateChain[0]
 
@@ -251,7 +254,7 @@ internal object CertificateVerifier {
         }
 
         // TEST ONLY: Mock test suite cannot attempt to check revocation status if no OSCP data has been stapled,
-        // because Andriod requires certificates to an specify OCSP responder for network fetch in this case.
+        // because Android requires certificates to an specify OCSP responder for network fetch in this case.
         // If in testing w/o OCSP stapled, short-circuit here - only prior checks apply.
         if ((mockKeystore.size() != 0) && (ocspResponse == null)) {
             return VerificationResult(StatusCode.Ok)
@@ -283,7 +286,7 @@ internal object CertificateVerifier {
             // 1. Known root + OSCP stapled -> Full-chain revocation, no extra network use
             // 2. Known root + no OSCP stapled -> Full-chain revocation, with extra network use
             // 3. Unknown root + OSCP stapled -> End-entity-only revocation, no extra network use
-            // 4. Uknown root + no OSCP stapled -> End-entity-only revocation, with extra network use
+            // 4. Unknown root + no OSCP stapled -> End-entity-only revocation, with extra network use
             val parameters = PKIXBuilderParameters(keystore, null)
 
             val validator = CertPathValidator.getInstance("PKIX")
@@ -360,7 +363,7 @@ internal object CertificateVerifier {
     private fun hashPrincipal(principal: X500Principal): String {
         val hexDigits = "0123456789abcdef".toCharArray()
         val digest = MessageDigest.getInstance("MD5").digest(principal.encoded)
-        var hexChars = CharArray(8)
+        val hexChars = CharArray(8)
 
         for (i in 0..3) {
             // Kotlin doesn't support bitwise operators for bytes, only Int and Long.
@@ -393,13 +396,13 @@ internal object CertificateVerifier {
                 val hash = hashPrincipal(root.subjectX500Principal)
                 var i = 0
                 while (true) {
-                    val alias = hash + '.' + i
+                    val alias = "$hash.$i"
 
                     if (!File(loadedSystemCertificateDirectory, alias).exists()) {
                         break
                     }
 
-                    val anchor = loadedSystemKeystore.getCertificate("system:" + alias)
+                    val anchor = loadedSystemKeystore.getCertificate("system:$alias")
 
                     // It's possible for `anchor` to be `null` if the user deleted a trust anchor.
                     // Continue iterating as there may be further collisions after the deleted anchor.
@@ -407,11 +410,11 @@ internal object CertificateVerifier {
                         continue
                         // This should never happen
                     } else if (anchor !is X509Certificate) {
-                        // SAFETY: This logs a unique identifer (hash value) only in cases where a file within the
+                        // SAFETY: This logs a unique identifier (hash value) only in cases where a file within the
                         // system's root trust store is not a valid X509 certificate (extremely unlikely error).
                         // The hash doesn't tell us any sensitive information about the invalid cert or reveal any of
                         // its contents - it just lets us ID the bad file if a customer is having TLS failure issues.
-                        Log.e(TAG, "anchor is not a certificate, alias: " + alias)
+                        Log.e(TAG, "anchor is not a certificate, alias: $alias")
                         continue
                         // If subject and public key match, it's a system root.
                     } else {
