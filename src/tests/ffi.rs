@@ -36,8 +36,14 @@ mod android {
     ) -> JString<'a> {
         // These can't fail, and even if they did, Android will crash the process like we want.
         ANDROID_INIT.call_once(|| {
+            let log_filter = android_logger::FilterBuilder::new()
+                .filter_module("jni", log::LevelFilter::Off)
+                .build();
+
             android_logger::init_once(
-                android_logger::Config::default().with_min_level(log::Level::Trace),
+                android_logger::Config::default()
+                    .with_min_level(log::Level::Trace)
+                    .with_filter(log_filter),
             );
             crate::android::init_hosted(env, cx).unwrap();
             std::panic::set_hook(Box::new(|info| {
@@ -76,7 +82,7 @@ mod android {
         .unwrap()
     }
 
-    #[export_name = "Java_rustls_platformverifier_android_CertificateVerifierTests_mockTests"]
+    #[export_name = "Java_org_rustls_platformverifier_CertificateVerifierTests_mockTests"]
     pub extern "C" fn rustls_platform_verifier_mock_test_suite(
         env: JNIEnv,
         _class: JClass,
@@ -93,7 +99,7 @@ mod android {
         .into_inner()
     }
 
-    #[export_name = "Java_rustls_platformverifier_android_CertificateVerifierTests_verifyMockRootUsage"]
+    #[export_name = "Java_org_rustls_platformverifier_CertificateVerifierTests_verifyMockRootUsage"]
     pub extern "C" fn rustls_platform_verifier_verify_mock_root_usage(
         env: JNIEnv,
         _class: JClass,
@@ -110,7 +116,7 @@ mod android {
         .into_inner()
     }
 
-    #[export_name = "Java_rustls_platformverifier_android_CertificateVerifierTests_realWorldTests"]
+    #[export_name = "Java_org_rustls_platformverifier_CertificateVerifierTests_realWorldTests"]
     pub extern "C" fn rustls_platform_verifier_real_world_test_suite(
         env: JNIEnv,
         _class: JClass,
