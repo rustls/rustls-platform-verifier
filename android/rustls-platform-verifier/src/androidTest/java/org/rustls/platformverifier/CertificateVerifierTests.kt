@@ -1,4 +1,4 @@
-package rustls.platformverifier.android
+package org.rustls.platformverifier
 
 import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
