@@ -156,7 +156,7 @@ fn map_webpki_errors(err: TlsError) -> TlsError {
 fn load_webpki_roots(store: &mut RootCertStore) {
     use rustls::OwnedTrustAnchor;
 
-    store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|root| {
+    store.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|root| {
         OwnedTrustAnchor::from_subject_spki_name_constraints(
             root.subject,
             root.spki,
