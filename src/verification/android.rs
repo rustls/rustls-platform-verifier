@@ -34,6 +34,7 @@ enum VerifierStatus {
 // official recommendation. See https://bugs.chromium.org/p/chromium/issues/detail?id=627154.
 const AUTH_TYPE: &str = "RSA";
 
+/// A TLS certificate verifier that utilizes the Android platform verifier.
 #[derive(Default)]
 pub struct Verifier {
     /// Testing only: The root CA certificate to trust.
@@ -55,6 +56,8 @@ impl Drop for Verifier {
 }
 
 impl Verifier {
+    /// Creates a new instance of a TLS certificate verifier that utilizes the
+    /// Android certificate facilities
     pub fn new() -> Self {
         Self {
             #[cfg(any(test, feature = "ffi-testing"))]
@@ -62,6 +65,7 @@ impl Verifier {
         }
     }
 
+    /// Creates a test-only TLS certificate verifier which trusts our fake root CA cert.
     #[cfg(any(test, feature = "ffi-testing"))]
     pub(crate) fn new_with_fake_root(root: &[u8]) -> Self {
         Self {

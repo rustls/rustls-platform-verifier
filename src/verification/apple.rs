@@ -37,6 +37,7 @@ fn system_time_to_cfdate(time: SystemTime) -> Result<CFDate, TlsError> {
         .map(|epoch| CFDate::new(epoch.as_secs() as f64))
 }
 
+/// A TLS certificate verifier that utilizes the Apple platform certificate facilities.
 #[derive(Default)]
 pub struct Verifier {
     /// Testing only: The root CA certificate to trust.

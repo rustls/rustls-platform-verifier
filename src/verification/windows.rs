@@ -487,6 +487,7 @@ fn map_trust_error_status(unfiltered_status: DWORD) -> Result<(), TlsError> {
     )))
 }
 
+/// A TLS certificate verifier that utilizes the Windows certificate facilities.
 #[derive(Default)]
 pub struct Verifier {
     /// Testing only: The root CA certificate to trust.
