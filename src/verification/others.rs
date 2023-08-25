@@ -5,6 +5,7 @@ use rustls::{
     CertificateError, Error as TlsError, RootCertStore,
 };
 
+/// A TLS certificate verifier that uses the system's root store and WebPKI.
 #[derive(Default)]
 pub struct Verifier {
     // We use a `OnceCell` so we only need
