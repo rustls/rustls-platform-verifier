@@ -42,7 +42,7 @@ mod android {
 
             android_logger::init_once(
                 android_logger::Config::default()
-                    .with_min_level(log::Level::Trace)
+                    .with_max_level(log::Level::Trace.to_level_filter())
                     .with_filter(log_filter),
             );
             crate::android::init_hosted(env, cx).unwrap();
