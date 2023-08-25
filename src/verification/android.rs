@@ -34,6 +34,7 @@ enum VerifierStatus {
 // official recommendation. See https://bugs.chromium.org/p/chromium/issues/detail?id=627154.
 const AUTH_TYPE: &str = "RSA";
 
+#[derive(Default)]
 pub struct Verifier {
     /// Testing only: The root CA certificate to trust.
     #[cfg(any(test, feature = "ffi-testing"))]
