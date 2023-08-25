@@ -70,7 +70,7 @@ impl Verifier {
         }
     }
 
-    pub fn verify_certificate(
+    fn verify_certificate(
         &self,
         end_entity: &rustls::Certificate,
         intermediates: &[rustls::Certificate],
