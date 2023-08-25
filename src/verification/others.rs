@@ -2,8 +2,9 @@ use super::log_server_cert;
 use once_cell::sync::OnceCell;
 use rustls::{
     client::{ServerCertVerifier, WebPkiVerifier},
-    CertificateError, Error as TlsError, RootCertStore,
+    CertificateError, Error as TlsError,
 };
+use std::sync::Mutex;
 
 /// A TLS certificate verifier that uses the system's root store and WebPKI.
 #[derive(Default)]
@@ -17,6 +18,10 @@ pub struct Verifier {
     // that might have been made since.
     inner: OnceCell<WebPkiVerifier>,
 
+    // Extra trust anchors to add to the verifier above and beyond those provided by the
+    // platform via rustls-native-certs.
+    extra_roots: Mutex<Vec<rustls::OwnedTrustAnchor>>,
+
     /// Testing only: an additional root CA certificate to trust.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
     test_only_root_ca_override: Option<Vec<u8>>,
@@ -24,10 +29,23 @@ pub struct Verifier {
 
 impl Verifier {
     /// Creates a new verifier whose certificate validation is provided by
-    /// WebPKI.
+    /// WebPKI, using root certificates provided by the platform.
     pub fn new() -> Self {
         Self {
             inner: OnceCell::new(),
+            extra_roots: Vec::new().into(),
+            #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
+            test_only_root_ca_override: None,
+        }
+    }
+
+    /// Creates a new verifier whose certificate validation is provided by
+    /// WebPKI, using root certificates provided by the platform and augmented by
+    /// the provided extra root certificates.
+    pub fn new_with_extra_roots(roots: impl IntoIterator<Item = rustls::OwnedTrustAnchor>) -> Self {
+        Self {
+            inner: OnceCell::new(),
+            extra_roots: roots.into_iter().collect::<Vec<_>>().into(),
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
         }
@@ -38,6 +56,7 @@ impl Verifier {
     pub(crate) fn new_with_fake_root(root: &[u8]) -> Self {
         Self {
             inner: OnceCell::new(),
+            extra_roots: Vec::new().into(),
             test_only_root_ca_override: Some(root.into()),
         }
     }
@@ -68,35 +87,42 @@ impl Verifier {
                     log::warn!("Some CA root certificates were ignored due to errors");
                 }
 
-                // While we load webpki-roots anyway, this can be helpful to know for troubleshooting.
                 if root_store.is_empty() {
                     log::error!("No CA certificates were loaded from the system");
+                } else {
+                    log::debug!("Loaded {added} CA certificates from the system");
                 }
 
-                // Finding TLS roots on Linux is not reliable enough to always depend on it
-                // across various distributions. Instead, we always load the WebPKI roots in
-                // addition so that a valid trust anchor is more likely to be available.
-                load_webpki_roots(&mut root_store);
-
-                log::debug!(
-                    "Loaded WebPKI roots in addition to {} roots from the system",
-                    added
-                );
+                // Safety: There's no way for the mutex to be locked multiple times, so this is
+                //         an infallible operation.
+                let mut extra_roots = self.extra_roots.try_lock().unwrap();
+                if !extra_roots.is_empty() {
+                    let count = extra_roots.len();
+                    root_store.add_trust_anchors(&mut extra_roots.drain(..));
+                    log::debug!(
+                        "Loaded {count} extra CA certificates in addition to roots from the system",
+                    );
+                }
             }
             Err(err) => {
                 // This only contains a path to a system directory:
-                // https://github.com/rustls/rustls-native-certs/blob/main/src/lib.rs#L71
-                log::error!(
-                    "No CA certificates were loaded: {}. Falling back to WebPKI roots",
-                    err,
-                );
-                load_webpki_roots(&mut root_store);
+                // https://github.com/rustls/rustls-native-certs/blob/bc13b9a6bfc2e1eec881597055ca49accddd972a/src/lib.rs#L91-L94
+                return Err(rustls::Error::General(format!(
+                    "failed to load system root certificates: {}",
+                    err
+                )));
             }
         };
 
         #[cfg(target_arch = "wasm32")]
         {
-            load_webpki_roots(&mut root_store);
+            root_store.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|root| {
+                rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
+                    root.subject,
+                    root.spki,
+                    root.name_constraints,
+                )
+            }));
         };
 
         Ok(WebPkiVerifier::new(root_store, None))
@@ -151,17 +177,4 @@ fn map_webpki_errors(err: TlsError) -> TlsError {
     }
 
     err
-}
-
-/// Loads the static `webpki-roots` into the provided certificate store.
-fn load_webpki_roots(store: &mut RootCertStore) {
-    use rustls::OwnedTrustAnchor;
-
-    store.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|root| {
-        OwnedTrustAnchor::from_subject_spki_name_constraints(
-            root.subject,
-            root.spki,
-            root.name_constraints,
-        )
-    }));
 }
