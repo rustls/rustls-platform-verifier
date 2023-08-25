@@ -6,7 +6,7 @@ use rustls::ClientConfig;
 use std::sync::Arc;
 
 mod verification;
-use verification::Verifier;
+pub use verification::Verifier;
 
 // Build the Android module when generating docs so that
 // the Android-specific functions are included.
@@ -28,7 +28,8 @@ mod tests;
 pub use tests::ffi::*;
 
 /// Creates and returns a `rustls` configuration that verifies TLS
-/// certificates in the best way for the underlying OS platform.
+/// certificates in the best way for the underlying OS platform, using
+/// safe defaults for the `rustls` configuration.
 ///
 /// # Example
 ///
@@ -45,6 +46,10 @@ pub use tests::ffi::*;
 ///     let _response = client.get("https://example.com").send().await;
 /// }
 /// ```
+///
+/// If you require more control over the rustls `ClientConfig`, you can
+/// instantiate a [Verifier] with [Verifier::default] and then use it
+/// with [rustls::ConfigBuilder::with_custom_certificate_verifier].
 ///
 /// Refer to the crate level documentation to see what platforms
 /// are currently supported.
