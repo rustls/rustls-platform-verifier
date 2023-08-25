@@ -64,7 +64,7 @@ impl Verifier {
     }
 
     #[cfg(any(test, feature = "ffi-testing"))]
-    pub fn new_with_fake_root(root: &[u8]) -> Self {
+    pub(crate) fn new_with_fake_root(root: &[u8]) -> Self {
         Self {
             test_only_root_ca_override: Some(root.into()),
         }
