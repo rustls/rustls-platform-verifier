@@ -39,7 +39,7 @@ docsrs = ["jni", "once_cell"]
 [dependencies]
 rustls = { version = "0.21", features = ["dangerous_configuration", "tls12", "logging"] }
 log = { version = "0.4" }
-base64 = { version = "0.13", optional = true } # Only used when the `cert-logging` feature is enabled.
+base64 = { version = "0.21", optional = true } # Only used when the `cert-logging` feature is enabled.
 jni = { version = "0.19", default-features = false, optional = true } # Only used during doc generation
 once_cell = { version = "1.9", optional = true } # Only used during doc generation.
 

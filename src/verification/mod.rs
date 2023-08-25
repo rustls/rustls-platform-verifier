@@ -40,7 +40,13 @@ impl std::error::Error for EkuError {}
 // if we need to debug a user's situation.
 fn log_server_cert(_end_entity: &rustls::Certificate) {
     #[cfg(feature = "cert-logging")]
-    log::debug!("verifying certificate: {}", base64::encode(&_end_entity.0));
+    {
+        use base64::Engine;
+        log::debug!(
+            "verifying certificate: {}",
+            base64::engine::general_purpose::STANDARD.encode(&_end_entity.0)
+        );
+    }
 }
 
 #[cfg(any(windows, target_os = "android", target_os = "macos", target_os = "ios"))]
