@@ -37,6 +37,7 @@ mod android {
         // These can't fail, and even if they did, Android will crash the process like we want.
         ANDROID_INIT.call_once(|| {
             let log_filter = android_logger::FilterBuilder::new()
+                .parse("trace")
                 .filter_module("jni", log::LevelFilter::Off)
                 .build();
 
