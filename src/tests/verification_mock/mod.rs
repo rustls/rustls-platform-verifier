@@ -72,15 +72,11 @@ macro_rules! no_error {
 const ROOT1: &[u8] = include_bytes!("root1.crt");
 const ROOT1_INT1: &[u8] = include_bytes!("root1-int1.crt");
 const ROOT1_INT1_EXAMPLE_COM_GOOD: &[u8] = include_bytes!("root1-int1-ee_example.com-good.crt");
-#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 const ROOT1_INT1_LOCALHOST_IPV4_GOOD: &[u8] = include_bytes!("root1-int1-ee_127.0.0.1-good.crt");
-#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 const ROOT1_INT1_LOCALHOST_IPV6_GOOD: &[u8] = include_bytes!("root1-int1-ee_1-good.crt");
 
 const EXAMPLE_COM: &str = "example.com";
-#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 const LOCALHOST_IPV4: &str = "127.0.0.1";
-#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 const LOCALHOST_IPV6: &str = "::1";
 
 #[cfg(any(test, feature = "ffi-testing"))]
@@ -127,35 +123,35 @@ mock_root_test_cases! {
         expected_result: Ok(()),
         other_error: no_error!(),
     },
-    valid_no_stapling_ipv4 [ any(windows, target_os = "macos", target_os = "linux") ] => TestCase {
+    valid_no_stapling_ipv4 [ any(windows, target_os = "android", target_os = "macos", target_os = "linux") ] => TestCase {
         reference_id: LOCALHOST_IPV4,
         chain: &[ROOT1_INT1_LOCALHOST_IPV4_GOOD, ROOT1_INT1],
         stapled_ocsp: None,
         expected_result: Ok(()),
         other_error: no_error!(),
     },
-    valid_no_stapling_ipv6 [ any(windows, target_os = "macos", target_os = "linux") ] => TestCase {
+    valid_no_stapling_ipv6 [ any(windows, target_os = "android", target_os = "macos", target_os = "linux") ] => TestCase {
         reference_id: LOCALHOST_IPV6,
         chain: &[ROOT1_INT1_LOCALHOST_IPV6_GOOD, ROOT1_INT1],
         stapled_ocsp: None,
         expected_result: Ok(()),
         other_error: no_error!(),
     },
-    valid_stapled_good_dns [ any(windows, target_os = "android", target_os = "macos", target_os = "linux") ] => TestCase {
+    valid_stapled_good_dns [ any(windows, target_os = "android", target_os = "android", target_os = "macos", target_os = "linux") ] => TestCase {
         reference_id: EXAMPLE_COM,
         chain: &[ROOT1_INT1_EXAMPLE_COM_GOOD, ROOT1_INT1],
         stapled_ocsp: Some(include_bytes!("root1-int1-ee_example.com-good.ocsp")),
         expected_result: Ok(()),
         other_error: no_error!(),
     },
-    valid_stapled_good_ipv4 [ any(windows, target_os = "macos", target_os = "linux") ] => TestCase {
+    valid_stapled_good_ipv4 [ any(windows, target_os = "android", target_os = "macos", target_os = "linux") ] => TestCase {
         reference_id: LOCALHOST_IPV4,
         chain: &[ROOT1_INT1_LOCALHOST_IPV4_GOOD, ROOT1_INT1],
         stapled_ocsp: Some(include_bytes!("root1-int1-ee_127.0.0.1-good.ocsp")),
         expected_result: Ok(()),
         other_error: no_error!(),
     },
-    valid_stapled_good_ipv6 [ any(windows, target_os = "macos", target_os = "linux") ] => TestCase {
+    valid_stapled_good_ipv6 [ any(windows, target_os = "android", target_os = "macos", target_os = "linux") ] => TestCase {
         reference_id: LOCALHOST_IPV6,
         chain: &[ROOT1_INT1_LOCALHOST_IPV6_GOOD, ROOT1_INT1],
         stapled_ocsp: Some(include_bytes!("root1-int1-ee_1-good.ocsp")),
@@ -173,14 +169,14 @@ mock_root_test_cases! {
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::Revoked)),
         other_error: no_error!(),
     },
-    stapled_revoked_ipv4 [ any(windows, target_os = "macos") ] => TestCase {
+    stapled_revoked_ipv4 [ any(windows, target_os = "android", target_os = "macos") ] => TestCase {
         reference_id: LOCALHOST_IPV4,
         chain: &[include_bytes!("root1-int1-ee_127.0.0.1-revoked.crt"), ROOT1_INT1],
         stapled_ocsp: Some(include_bytes!("root1-int1-ee_127.0.0.1-revoked.ocsp")),
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::Revoked)),
         other_error: no_error!(),
     },
-    stapled_revoked_ipv6 [ any(windows, target_os = "macos") ] => TestCase {
+    stapled_revoked_ipv6 [ any(windows, target_os = "android", target_os = "macos") ] => TestCase {
         reference_id: LOCALHOST_IPV6,
         chain: &[include_bytes!("root1-int1-ee_1-revoked.crt"), ROOT1_INT1],
         stapled_ocsp: Some(include_bytes!("root1-int1-ee_1-revoked.ocsp")),
@@ -199,14 +195,14 @@ mock_root_test_cases! {
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::UnknownIssuer)),
         other_error: no_error!(),
     },
-    ee_only_ipv4 [ any(windows, target_os = "macos", target_os = "linux") ] => TestCase {
+    ee_only_ipv4 [ any(windows, target_os = "android", target_os = "macos", target_os = "linux") ] => TestCase {
         reference_id: LOCALHOST_IPV4,
         chain: &[ROOT1_INT1_LOCALHOST_IPV4_GOOD],
         stapled_ocsp: None,
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::UnknownIssuer)),
         other_error: no_error!(),
     },
-    ee_only_ipv6 [ any(windows, target_os = "macos", target_os = "linux") ] => TestCase {
+    ee_only_ipv6 [ any(windows, target_os = "android", target_os = "macos", target_os = "linux") ] => TestCase {
         reference_id: LOCALHOST_IPV6,
         chain: &[ROOT1_INT1_LOCALHOST_IPV6_GOOD],
         stapled_ocsp: None,
@@ -221,14 +217,14 @@ mock_root_test_cases! {
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
         other_error: no_error!(),
     },
-    domain_mismatch_ipv4 [ any(windows, target_os = "macos", target_os = "linux") ] => TestCase {
+    domain_mismatch_ipv4 [ any(windows, target_os = "android", target_os = "macos", target_os = "linux") ] => TestCase {
         reference_id: "198.168.0.1",
         chain: &[ROOT1_INT1_LOCALHOST_IPV4_GOOD, ROOT1_INT1],
         stapled_ocsp: None,
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
         other_error: no_error!(),
     },
-    domain_mismatch_ipv6 [ any(windows, target_os = "macos", target_os = "linux") ] => TestCase {
+    domain_mismatch_ipv6 [ any(windows, target_os = "android", target_os = "macos", target_os = "linux") ] => TestCase {
         reference_id: "::ffff:c6a8:1",
         chain: &[ROOT1_INT1_LOCALHOST_IPV6_GOOD, ROOT1_INT1],
         stapled_ocsp: None,
@@ -243,7 +239,7 @@ mock_root_test_cases! {
             CertificateError::Other(Arc::from(EkuError)))),
         other_error: Some(EkuError),
     },
-    wrong_eku_ipv4 [ any(windows, target_os = "macos", target_os = "linux") ] => TestCase {
+    wrong_eku_ipv4 [ any(windows, target_os = "android", target_os = "macos", target_os = "linux") ] => TestCase {
         reference_id: LOCALHOST_IPV4,
         chain: &[include_bytes!("root1-int1-ee_127.0.0.1-wrong_eku.crt"), ROOT1_INT1],
         stapled_ocsp: None,
@@ -251,7 +247,7 @@ mock_root_test_cases! {
             CertificateError::Other(Arc::from(EkuError)))),
         other_error: Some(EkuError),
     },
-    wrong_eku_ipv6 [ any(windows, target_os = "macos", target_os = "linux") ] => TestCase {
+    wrong_eku_ipv6 [ any(windows, target_os = "android", target_os = "macos", target_os = "linux") ] => TestCase {
         reference_id: LOCALHOST_IPV6,
         chain: &[include_bytes!("root1-int1-ee_1-wrong_eku.crt"), ROOT1_INT1],
         stapled_ocsp: None,
