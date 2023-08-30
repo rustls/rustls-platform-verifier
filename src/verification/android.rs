@@ -4,12 +4,11 @@ use jni::{
     JNIEnv,
 };
 use rustls::Error::InvalidCertificate;
-use rustls::{client::ServerCertVerifier, CertificateError, Error as TlsError};
+use rustls::{client::ServerCertVerifier, CertificateError, Error as TlsError, ServerName};
 use std::time::SystemTime;
 
 use super::{log_server_cert, unsupported_server_name, ALLOWED_EKUS};
 use crate::android::{with_context, CachedClass};
-use crate::verification::invalid_certificate;
 
 static CERT_VERIFIER_CLASS: CachedClass =
     CachedClass::new("org/rustls/platformverifier/CertificateVerifier");
@@ -69,11 +68,12 @@ impl Verifier {
         }
     }
 
-    pub fn verify_certificate(
+    fn verify_certificate(
         &self,
         end_entity: &rustls::Certificate,
         intermediates: &[rustls::Certificate],
-        server_name: &str,
+        server_name: &rustls::ServerName,
+        server_name_str: &str,
         ocsp_response: Option<&[u8]>,
         now: SystemTime,
     ) -> Result<(), TlsError> {
@@ -167,7 +167,7 @@ impl Verifier {
                     VERIFIER_CALL,
                     &[
                         JValue::from(*cx.application_context()),
-                        JValue::from(env.new_string(server_name)?),
+                        JValue::from(env.new_string(server_name_str)?),
                         JValue::from(env.new_string(AUTH_TYPE)?),
                         JValue::from(JObject::from(allowed_ekus)),
                         JValue::from(ocsp_response),
@@ -189,17 +189,10 @@ impl Verifier {
                 match status {
                     VerifierStatus::Ok => {
                         // If everything else was OK, check the hostname.
-                        let cert = webpki::EndEntityCert::try_from(end_entity.as_ref())
-                            .map_err(pki_name_error)?;
-                        let name = webpki::SubjectNameRef::DnsName(
-                            // This unwrap can't fail since it was already validated before.
-                            webpki::DnsNameRef::try_from_ascii_str(server_name).unwrap(),
-                        );
-                        if cert.verify_is_valid_for_subject_name(name).is_ok() {
-                            Ok(())
-                        } else {
-                            Err(InvalidCertificate(CertificateError::NotValidForName))
-                        }
+                        rustls::client::verify_server_name(
+                            &rustls::server::ParsedCertificate::try_from(end_entity)?,
+                            server_name,
+                        )
                     }
                     VerifierStatus::Unavailable => Err(TlsError::General(String::from(
                         "No system trust stores available",
@@ -257,14 +250,6 @@ fn extract_result_info(env: &JNIEnv<'_>, result: JObject<'_>) -> (VerifierStatus
     (status, msg.map(String::from))
 }
 
-fn pki_name_error(error: webpki::Error) -> TlsError {
-    use webpki::Error::*;
-    match error {
-        BadDer | BadDerTime => InvalidCertificate(CertificateError::BadEncoding),
-        e => invalid_certificate(format!("invalid peer certificate: {}", e)),
-    }
-}
-
 impl ServerCertVerifier for Verifier {
     fn verify_server_cert(
         &self,
@@ -280,8 +265,15 @@ impl ServerCertVerifier for Verifier {
     ) -> Result<rustls::client::ServerCertVerified, TlsError> {
         log_server_cert(end_entity);
 
-        let server = match server_name {
-            rustls::ServerName::DnsName(name) => name.as_ref(),
+        // Verify the server name is one that we support and extract a string to use
+        // for the platform verifier call.
+        let ip_name;
+        let server_name_str = match server_name {
+            ServerName::DnsName(dns_name) => dns_name.as_ref(),
+            ServerName::IpAddress(ip_addr) => {
+                ip_name = ip_addr.to_string();
+                &ip_name
+            }
             _ => return Err(unsupported_server_name()),
         };
 
@@ -291,7 +283,14 @@ impl ServerCertVerifier for Verifier {
             None
         };
 
-        match self.verify_certificate(end_entity, intermediates, server, ocsp_data, now) {
+        match self.verify_certificate(
+            end_entity,
+            intermediates,
+            server_name,
+            server_name_str,
+            ocsp_data,
+            now,
+        ) {
             Ok(()) => Ok(rustls::client::ServerCertVerified::assertion()),
             Err(e) => {
                 // This error only tells us what the system errored with, so it doesn't leak anything
