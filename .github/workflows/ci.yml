@@ -30,16 +30,13 @@ jobs:
       - uses: actions/checkout@v3
         with:
           persist-credentials: false
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
           components: clippy
 
       - name: Clippy (${{ matrix.os }})
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy-ci
+        run: cargo clippy-ci
 
       - name: Clippy (Android)
         if: matrix.os == 'ubuntu-latest'
@@ -74,15 +71,11 @@ jobs:
       - uses: actions/checkout@v3
         with:
           persist-credentials: false
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-    
+
+      - uses: dtolnay/rust-toolchain@stable
+
       - name: Test (${{ matrix.os }})
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
+        run: cargo test
 
       - name: Setup Android test environment
         uses: actions/setup-java@v2
@@ -137,15 +130,10 @@ jobs:
       - uses: actions/checkout@v3
         with:
           persist-credentials: false
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
           components: rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+      - run: cargo fmt --all -- --check
   
   android_fmt:
     name: Ktlint
