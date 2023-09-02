@@ -3,6 +3,8 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+def isTest = gradle.startParameter.taskNames.any { it.contains("Test") }
+
 static def getOsArch() {
     final String hostArch = System.getProperty("os.arch")
 
@@ -27,6 +29,8 @@ android {
     defaultConfig {
         minSdk 22
         targetSdk 33
+
+        buildConfigField "boolean", "TEST", "$isTest"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
