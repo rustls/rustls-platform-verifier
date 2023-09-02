@@ -105,7 +105,7 @@ internal object CertificateVerifier {
 
     @JvmStatic
     private fun addMockRoot(root: ByteArray) {
-        if (!BuildConfig.DEBUG) {
+        if (!BuildConfig.TEST) {
             throw Exception("attempted to add a mock root outside a test!")
         }
 
@@ -222,10 +222,10 @@ internal object CertificateVerifier {
         // We select them as follows:
         // - If built for release, only use the system trust manager. This should let all test-related
         // code be optimized out.
-        // - If built for debug:
+        // - If built for tests:
         //      - If the mock CA store has any values, use the mock trust manager.
         //      - Otherwise, use the system trust manager.
-        val (trustManager, keystore) = if (!BuildConfig.DEBUG) {
+        val (trustManager, keystore) = if (!BuildConfig.TEST) {
             val trustManager =
                 systemTrustManager.value ?: return VerificationResult(StatusCode.Unavailable)
             Pair(trustManager, systemKeystore)
@@ -256,7 +256,7 @@ internal object CertificateVerifier {
         // TEST ONLY: Mock test suite cannot attempt to check revocation status if no OSCP data has been stapled,
         // because Android requires certificates to an specify OCSP responder for network fetch in this case.
         // If in testing w/o OCSP stapled, short-circuit here - only prior checks apply.
-        if ((mockKeystore.size() != 0) && (ocspResponse == null)) {
+        if (BuildConfig.TEST && (mockKeystore.size() != 0) && (ocspResponse == null)) {
             return VerificationResult(StatusCode.Ok)
         }
 
