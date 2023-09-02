@@ -159,3 +159,14 @@ jobs:
         run: |
           cd ./android
           ./gradlew ktlint
+
+  verify_android:
+    name: Verify Android artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+      
+      - name: Verify release artifact
+        run: ./ci/verify_android_release.sh
