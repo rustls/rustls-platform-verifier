@@ -79,18 +79,18 @@ jobs:
           rustup target add aarch64-linux-android
 
       - name: Clippy (${{ matrix.os }})
-        run: cargo clippy-ci
+        run: cargo clippy-msrv-ci
 
       - name: Clippy (Android)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          cargo ndk -t arm64-v8a clippy-ci 
+          cargo ndk -t arm64-v8a clippy-msrv-ci
 
       - name: Clippy (iOS)
         if: matrix.os == 'macos-latest'
         run: |
           rustup target add x86_64-apple-ios
-          cargo clippy-ci  --target x86_64-apple-ios
+          cargo clippy-msrv-ci --target x86_64-apple-ios
 
       # TODO: Consider WASM. See note on "clippy" job.
 
