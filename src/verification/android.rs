@@ -248,7 +248,7 @@ fn extract_result_info(env: &JNIEnv<'_>, result: JObject<'_>) -> (VerifierStatus
     let msg = env
         .get_field(result, "message", "Ljava/lang/String;")
         .and_then(|m| m.l())
-        .map(|o| (!o.is_null()).then(|| o))
+        .map(|o| (!o.is_null()).then_some(o))
         .and_then(|s| s.map(|s| JavaStr::from_env(env, s.into())).transpose())
         .unwrap();
 

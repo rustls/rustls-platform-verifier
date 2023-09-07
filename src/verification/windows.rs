@@ -184,7 +184,7 @@ impl Certificate {
                 CERT_SET_PROPERTY_IGNORE_PERSIST_ERROR_FLAG,
                 prop_data,
             ) == TRUE)
-                .then(|| ())
+                .then_some(())
         })
     }
 }
