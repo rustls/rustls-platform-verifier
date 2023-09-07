@@ -30,6 +30,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           persist-credentials: false
+
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
@@ -130,9 +131,11 @@ jobs:
       - uses: actions/checkout@v3
         with:
           persist-credentials: false
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+
       - run: cargo fmt --all -- --check
   
   android_fmt:
