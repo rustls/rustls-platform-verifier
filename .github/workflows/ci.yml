@@ -4,6 +4,8 @@ on:
       - main
       - "*_dev"
   pull_request:
+  schedule:
+    - cron: '0 18 * * *'
 
 name: CI
 permissions:
