@@ -101,6 +101,15 @@ successfully, resulting in a `rustls` group appearing in Android Studio's projec
 After this, everything should be ready to use. Future updates of `rustls-platform-verifier` won't need any maintenance beyond the
 expected `cargo update`.
 
+#### Proguard
+
+If your Android application makes use of Proguard for optimizations, its important to make sure that the Android verifier component isn't optimized 
+out because it looks like dead code. Proguard is unable to see any JNI usage, so your rules must manually opt into keeping it. THe following rule
+can do this for you:
+```text
+-keep, includedescriptorclasses class org.rustls.platformverifier.** { *; }
+```
+
 #### Crate initialization
 
 In order for the crate to call into the JVM, it needs handles from Android. These
