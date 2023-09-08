@@ -9,14 +9,6 @@ license = "MIT OR Apache-2.0"
 edition = "2021"
 rust-version = "1.64.0"
 
-exclude = [
-    "android/.run",
-    "android/gradle/**",
-    "android/gradle*",
-    "android/settings.gradle",
-    "android/src/androidTest",
-]
-
 [lib]
 name = "rustls_platform_verifier"
 # Note: The `cdylib` specification is for testing only. The shared library
@@ -49,6 +41,7 @@ once_cell = "1.9"
 webpki = { package = "rustls-webpki", version = "0.101", features = ["alloc", "std"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
+rustls-platform-verifier-android = { path = "../android-release-support", version = "0.1.0" }
 jni = { version = "0.19", default-features = false }
 webpki = { package = "rustls-webpki", version = "0.101", features = ["alloc", "std"] }
 once_cell = "1.9"

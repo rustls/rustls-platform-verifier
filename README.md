@@ -49,57 +49,49 @@ component must be included in your app's build to support `rustls-platform-verif
 `rustls-platform-verifier` bundles the required native components in the crate, but the project must be setup to locate them
 automatically and correctly.
 
-Firstly, create an [init script](https://docs.gradle.org/current/userguide/init_scripts.html) in your Android
-Gradle project, with a filename of `init.gradle`. This is generally placed in your project's root. In your project's `settings.gradle`, add these lines:
+Inside of your project's `build.gradle` file, add the following code and Maven repository definition. `$PATH_TO_DEPENDENT_CRATE` is 
+the relative path to the Cargo manifest (`Cargo.toml`) of any crate in your workspace that depends on `rustls-platform-verifier` from 
+the location of your `build.gradle` file:
 
 ```groovy
-apply from: file("./init.gradle");
-// Cargo automatically handles finding the downloaded crate in the correct location
-// for your project.
-def veifierProjectPath = findRustlsPlatformVerifierProject()
-includeBuild("${verifierProjectPath}/android/")
-```
+import groovy.json.JsonSlurper
+import groovy.transform.Memoized
 
-Next, the `rustls-platform-verifier` external dependency needs to be setup. Open the `init.gradle` file and add the following:
-`$PATH_TO_DEPENDENT_CRATE` is the relative path to the Cargo manifest (`Cargo.toml`) of any crate in your workspace that depends on `rustls-platform-verifier`
-from the location of your `init.gradle` file.
+// ...Your own script code could be here...
 
-Alternatively, you can use `cmdProcessBuilder.directory(File("PATH_TO_ROOT"))` to change the working directory instead.
+allprojects {
+    repositories {
+        // ... Your other repositories could be here...
+        maven {
+            url = findRustlsPlatformVerifierProject()
+            metadataSources.artifact()
+        }
+    }
+}
 
-```groovy
-ext.findRustlsPlatformVerifierProject = {
-    def cmdProcessBuilder = new ProcessBuilder(new String[] { "cargo", "metadata", "--format-version", "1", "--manifest-path", "$PATH_TO_DEPENDENT_CRATE" })
-    def dependencyInfoText = new StringBuffer()
+@Memoized
+String findRustlsPlatformVerifierProject() {
+    def dependencyText = providers.exec {
+        it.workingDir = new File("../")
+        commandLine("cargo", "metadata", "--format-version", "1", "--manifest-path", "$PATH_TO_DEPENDENT_CRATE/Cargo.toml")
+    }.standardOutput.asText.get()
 
-    def cmdProcess = cmdProcessBuilder.start()
-    cmdProcess.consumeProcessOutput(dependencyInfoText, null)
-    cmdProcess.waitFor()
-
-    def dependencyJson = new groovy.json.JsonSlurper().parseText(dependencyInfoText.toString())
-    def manifestPath = file(dependencyJson.packages.find { it.name == "rustls-platform-verifier" }.manifest_path)
-    return manifestPath.parent
+    def dependencyJson = new JsonSlurper().parseText(dependencyText)
+    def manifestPath = file(dependencyJson.packages.find { it.name == "rustls-platform-verifier-android" }.manifest_path)
+    return new File(manifestPath.parentFile, "maven").path
 }
 ```
 
-This script can be tweaked as best suits your project, but the `cargo metadata` invocation must be included so that the Android
-implementation source can be located on disk.
-
-If your project often updates its Android Gradle Plugin versions, you should additionally consider setting your app's project
-up to override `rustls-platform-verifier`'s dependency versions. This allows your app to control what versions are used and avoid
-conflicts. To do so, advertise a `versions.path` system property from your `settings.gradle`:
-
+Then, wherever you declare your dependencies, add the following:
 ```groovy
-ext.setVersionsPath = {
-    System.setProperty("versions.path", file("your/versions/path.toml").absolutePath)
-}
-
-setVersionsPath()
+implementation "rustls:rustls-platform-verifier:latest.release"
 ```
 
-Finally, sync your gradle project changes. It should pick up on the `rustls-platform-verifier` Gradle project. It should finish
-successfully, resulting in a `rustls` group appearing in Android Studio's project view.
-After this, everything should be ready to use. Future updates of `rustls-platform-verifier` won't need any maintenance beyond the
-expected `cargo update`.
+Cargo automatically handles finding the downloaded crate in the correct location for your project. It also handles updating the version when
+new releases of `rustls-platform-verifier` are published. If you only use published releases, no extra maintainence should be required.
+
+These script snippets can be tweaked as best suits your project, but the `cargo metadata` invocation must be included so that the Android
+implementation part can be located on disk.
 
 If your Android application makes use of Proguard for optimizations, its important to make sure that the Android verifier component isn't optimized 
 out because it looks like dead code. Proguard is unable to see any JNI usage, so your rules must manually opt into keeping it. THe following rule
