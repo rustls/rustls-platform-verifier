@@ -3,3 +3,8 @@
 /.idea
 
 /android/verification/
+
+# Ignore all generated Maven local repository files and folders
+/android-release-support/maven/pom.xml
+/android-release-support/maven/rustls/rustls-platform-verifier/**/
+/android-release-support/maven/rustls/rustls-platform-verifier/maven-metadata-local.xml
