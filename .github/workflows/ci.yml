@@ -3,10 +3,10 @@ on:
     branches:
       - main
       - "*_dev"
-  pull_request:
-  merge_group:
-  schedule:
-    - cron: '0 18 * * *'
+  #pull_request:
+  # merge_group:
+  #schedule:
+  #  - cron: '0 18 * * *'
 
 name: CI
 permissions:

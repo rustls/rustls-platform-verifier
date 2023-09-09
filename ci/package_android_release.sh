@@ -33,6 +33,11 @@ artifact_path="../android/rustls-platform-verifier/build/outputs/aar/$artifact_n
 git clean -dfX "./maven/"
 
 cp ./pom-template.xml ./maven/pom.xml
-sed -i "" "s/\$VERSION/$version/" ./maven/pom.xml
+
+# This sequence is meant to workaround the incompatibilites between macOS's sed
+# command and the GNU command. Referenced from the following:
+# https://stackoverflow.com/questions/5694228/sed-in-place-flag-that-works-both-on-mac-bsd-and-linux
+sed -i.bak "s/\$VERSION/$version/" ./maven/pom.xml
+rm ./maven/pom.xml.bak
 
 mvn install:install-file -Dfile="$artifact_path" -Dpackaging="aar" -DpomFile="./maven/pom.xml" -DlocalRepositoryPath="./maven/"
