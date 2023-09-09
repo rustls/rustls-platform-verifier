@@ -668,6 +668,7 @@ dependencies = [
  "reqwest",
  "rustls",
  "rustls-native-certs",
+ "rustls-platform-verifier-android",
  "rustls-webpki",
  "security-framework",
  "security-framework-sys",
@@ -675,6 +676,10 @@ dependencies = [
  "webpki-roots",
  "winapi",
 ]
+
+[[package]]
+name = "rustls-platform-verifier-android"
+version = "0.1.0"
 
 [[package]]
 name = "rustls-webpki"

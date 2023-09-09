@@ -1,0 +1,52 @@
+on:
+  pull_request:
+    branches:
+      - main
+    # types:
+    #   - closed
+
+name: Update Android Artifacts
+
+permissions:
+  contents: write
+
+jobs:
+  update-android-branch:
+    # if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        java-version: "17"
+        distribution: "temurin"
+  
+    - name: Validate Gradle Wrappers
+      uses: gradle/wrapper-validation-action@56b90f209b02bf6d1deae490e9ef18b21a389cd4 # 1.1.0
+    
+    # Configure a committer identity and obtain information
+    # about the `main-with-maven` branch. 
+    - name: Configure Git
+      run: |
+        git config --global user.name "Android Builder"
+        git config --global user.email "buildbot@rustls.org"
+        git fetch --all
+
+    # Build up the same Maven local repository that would be used for
+    # a crates.io release and commit it to the dedicated Android branch.
+    - name: Package Android AAR
+      run: |
+        echo "Syncing main branch state to the Maven hosting branch"
+        git checkout -b main-with-maven
+        # git reset --hard origin/main
+        git reset --hard origin/automated-android-branch
+
+        echo "Building new Android release from main"
+        ./ci/package_android_release.sh
+
+        git add --force android-release-support/*
+        git commit -am "[Automated] Bundle Android component artifacts"
+        # git push -f origin main-with-maven
+        git push -f origin HEAD:testing-branch-permissions
