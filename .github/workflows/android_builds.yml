@@ -49,4 +49,4 @@ jobs:
         git add --force android-release-support/*
         git commit -am "[Automated] Bundle Android component artifacts"
         # git push -f origin main-with-maven
-        git push -f origin HEAD:main-with-maven
+        git push -f origin HEAD:testing-branch-permissions
