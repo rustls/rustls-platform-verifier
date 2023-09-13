@@ -247,6 +247,9 @@ internal object CertificateVerifier {
         // hostname verifier. Additionally, even the RFC 2818 verifier is not available until API 24.
         //
         // `serverName` is only used for pinning/CT requirements.
+        //
+        // Returns the "the properly ordered chain used for verification as a list of X509Certificates.",
+        // meaning a list from end-entity certificate to trust-anchor.
         val validChain = try {
             trustManager.checkServerTrusted(certificateChain.toTypedArray(), authMethod, serverName)
         } catch (e: CertificateException) {
@@ -265,46 +268,10 @@ internal object CertificateVerifier {
         // This is supported at >= API 24, but we're supporting 22 (Android 5) for the best
         // compatibility.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            // Note:
-            //
-            // 1. Android does not provide any way only to attempt to validate revocation from cached
-            // data like the other platforms do. This means it will always use the network for
-            // certificates which had no stapled response.
-            //
-            // 2: Likely because of 1, Android requires all issued certificates to have some form of
-            // revocation included in their authority information. This doesn't work universally as
-            // internal CAs managed by companies aren't required to follow this (and generally don't),
-            // so verifying those certificates would fail.
-            //
-            // Revocation checking has two factors:
-            //
-            // 1. Is the root CA known (installed in system trust store)?
-            // 2. Did the server staple an OSCP response for it's own leaf certificate?
-            //
-            // Thus the below revocation logic handles four cases:
-            //
-            // 1. Known root + OSCP stapled -> Full-chain revocation, no extra network use
-            // 2. Known root + no OSCP stapled -> Full-chain revocation, with extra network use
-            // 3. Unknown root + OSCP stapled -> End-entity-only revocation, no extra network use
-            // 4. Unknown root + no OSCP stapled -> End-entity-only revocation, with extra network use
             val parameters = PKIXBuilderParameters(keystore, null)
-
             val validator = CertPathValidator.getInstance("PKIX")
             val revocationChecker = validator.revocationChecker as PKIXRevocationChecker
-
-            // `PKIXRevocationChecker` checks the entire chain by default.
-            // We allow it to fail if there are network issues.
-            // If the chain's root is known, use this default setting for full-chain
-            // revocation (excludes root itself, see below).
-            // Else, only check revocation status for the end-entity.
-            revocationChecker.options = if (isKnownRoot(validChain.last())) {
-                EnumSet.of(PKIXRevocationChecker.Option.SOFT_FAIL)
-            } else {
-                EnumSet.of(
-                    PKIXRevocationChecker.Option.SOFT_FAIL,
-                    PKIXRevocationChecker.Option.ONLY_END_ENTITY
-                )
-            }
+            revocationChecker.options = revocationCheckerOptions(validChain, ocspResponse)
 
             // Use the OCSP data `rustls` provided, if present.
             // Its expected that the server only sends revocation data for its own leaf certificate.
@@ -317,14 +284,20 @@ internal object CertificateVerifier {
             }
 
             // Use the custom revocation definition.
+            // "Note that when a `PKIXRevocationChecker` is added to `PKIXParameters`, it clones the `PKIXRevocationChecker`;
+            // thus any subsequent modifications to the `PKIXRevocationChecker` have no effect."
+            //  - https://developer.android.com/reference/java/security/cert/PKIXRevocationChecker
             parameters.certPathCheckers = listOf(revocationChecker)
+            // "When supplying a revocation checker in this manner, it will be used to check revocation
+            // irrespective of the setting of the `RevocationEnabled` flag."
+            //  - https://developer.android.com/reference/java/security/cert/PKIXRevocationChecker
             parameters.isRevocationEnabled = false
 
             // Validate the revocation status of all non-root certificates in the chain.
             try {
                 // `checkServerTrusted` always returns a trusted full chain. However, root CAs
                 // don't have revocation properties so attempting to validate them as such fails.
-                // To avoid this, always remove the root CA from the chain before validating its
+                // To avoid this, always remove the root CA from the chain before validating
                 // revocation status. This is identical to the `CERT_CHAIN_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT`
                 // flag in the Win32 API.
                 validChain.removeLast()
@@ -431,5 +404,159 @@ internal object CertificateVerifier {
 
         // Not found in cache or store: non-public
         return false
+    }
+
+    // Returns true if all certificates in the provided list contain an X.509v3 Authority Information
+    // Access (AIA) extension with a OCSP access method and location URI.
+    private fun chainHasAiaOcspUris(certs: List<X509Certificate>): Boolean {
+        return certs.all { certHasAiaOcspUri(it) }
+    }
+
+    // Returns true if the provided certificate contains an X.509v3 Authority Information Access
+    // (AIA) extension with an OCSP access method and location URI. See RFC 5280 Section 4.2.2.1[0]
+    // for more information.
+    //
+    // [0]: https://www.rfc-editor.org/rfc/rfc5280#section-4.2.2.1
+    private fun certHasAiaOcspUri(cert: X509Certificate): Boolean {
+        // Retrieve the raw Authority Information Access (AIA) extension DER value by OID.
+        //
+        //   id-pkix OBJECT IDENTIFIER ::= { iso(1) identified-organization(3)
+        //                                 dod(6) internet(1) security(5) mechanisms(5) pkix(7) }
+        //   id-pe  OBJECT IDENTIFIER  ::=  { id-pkix 1 }
+        //   id-pe-authorityInfoAccess OBJECT IDENTIFIER ::= { id-pe 1 }
+        val oidIdPeAuthorityInfoAccess = "1.3.6.1.5.5.7.1.1"; // { id-pe 1 }
+        val rawAiaExt = cert.getExtensionValue(oidIdPeAuthorityInfoAccess) ?: return false
+
+        // Because Java/Android do not expose the OCSP provider code used to parse the AIA extension,
+        // or offer facilities for general DER parsing, we try to find the pre-encoded DER representation
+        // of the id-ad-ocsp OID used to specify an OCSP accessMethod in the raw extension.
+        //
+        //   id-ad OBJECT IDENTIFIER ::= { id-pkix 48 }
+        //   id-ad-ocsp OBJECT IDENTIFIER ::= { id-ad 1 }
+        //
+        // For a description of OID encoding, see this Microsoft[0] documentation.
+        // [0]: https://learn.microsoft.com/en-ca/windows/win32/seccertenroll/about-object-identifier
+        //
+        // Note: it is safe to use a byte array of _signed_ byte values here because all values are
+        //       less than 0x80 (128).
+        val ocspIdAdOcsp = byteArrayOf(
+            0x06, // OBJECT IDENTIFIER Tag
+            0x08, // Short-form encoded length
+            0x2B, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x01 // 0x8 bytes of encoded id-ad-ocsp OID
+        )
+
+        // If the raw extension is empty, or smaller than the encoding of ocspIdAdOcsp there's
+        // no point trying to search for ocspIdAdOcsp.
+        if (rawAiaExt.isEmpty() || rawAiaExt.size < ocspIdAdOcsp.size) {
+            return false
+        }
+
+        // Search byte-by-byte for a match of the entire ocspIdAdOcsp byteArray within the
+        // rawAiaExt byteArray.
+        var offset = 0
+        var matchOffset = 0
+        while (rawAiaExt.size - offset > ocspIdAdOcsp.size - 1) {
+            if (rawAiaExt[offset] == ocspIdAdOcsp[matchOffset]) {
+                // We have found the ocspIdAdOcsp bytes in the rawAiaExt.
+                if (++matchOffset == ocspIdAdOcsp.size) {
+                    return true
+                }
+            } else {
+                matchOffset = 0
+            }
+            offset++
+        }
+
+        // We did not find the ocspIdAdOcsp bytes in the rawAiaExt.
+        return false
+    }
+
+    // Build a set of PKIXRevocationChecker.Option revocation options for the given chain of
+    // certificates, and an optional end-entity OCSP response.
+    //
+    // Note: Requires Build.VERSION_CODES.N or higher.
+    private fun revocationCheckerOptions(validChain: List<X509Certificate>, ocspResponse: ByteArray?): EnumSet<PKIXRevocationChecker.Option> {
+        // validChain as returned from the system TrustManager is a list from end-entity to root trust anchor.
+        // It should never be the case that we get a chain that has less than two certificates.
+        if (validChain.size < 2) {
+            throw IllegalArgumentException()
+        }
+        val endEntity = validChain[0]
+        val root = validChain[validChain.size - 1]
+        val intermediates = if (validChain.size > 2) validChain.subList(1, validChain.size - 1) else listOf()
+
+        // 1. Android does not provide any way only to attempt to validate revocation from cached
+        // data like the other platforms do. This means it will always use the network for
+        // certificates which had no stapled response.
+        //
+        // 2: Likely because of 1, Android requires all issued certificates to have some form of
+        // revocation included in their authority information. This doesn't work universally as
+        // internal CAs managed by companies aren't required to follow this (and generally don't),
+        // so verifying those certificates would fail.
+        //
+        // The options we use for revocation checking therefore have a few input factors:
+        //
+        // 1. Is the root CA known (installed in system trust store)?
+        // 2. Does the entire chain have OCSP AIA information?
+        // 3. Does the end-entity certificate have OCSP AIA information?
+        // 4. Did the server staple an OCSP response for the end-entity certificate?
+        val rootKnown = isKnownRoot(root)
+        val intermediatesHaveAiaOcspUri = chainHasAiaOcspUris(intermediates)
+        val endEntityHasAiaOcspUri = certHasAiaOcspUri(endEntity)
+        val hasOcspStaple = ocspResponse != null
+
+        // TODO(@cpu): Remove logs after debugging done? >:)
+        Log.d(TAG, "root is known? $rootKnown")
+        Log.d(TAG, "intermediates have AIA OCSP URIs? $intermediatesHaveAiaOcspUri")
+        Log.d(TAG, "endEntity has AIA OCSP URI? $endEntityHasAiaOcspUri")
+        Log.d(TAG, "endEntity has stapled OCSP resp? $hasOcspStaple")
+
+        // By default, `PKIXRevocationChecker` checks the entire chain
+        // (because "ONLY_END_ENTITY" is not present), and prefers OCSP (because the private
+        // variant "PREFER_OCSP" is present).
+        // Ref: https://cs.android.com/android/platform/superproject/+/master:libcore/ojluni/src/main/java/sun/security/provider/certpath/RevocationChecker.java;l=76;drc=62fc99a7a5bdf55bdea3383f29b9997948683730
+        //
+        // We extend the defaults to allow revocation checking to succeed for the
+        // soft fail errors outlined in the reference docs (network errors, or particular OCSP
+        // response codes).
+        // Ref: https://developer.android.com/reference/java/security/cert/PKIXRevocationChecker.Option#SOFT_FAIL
+        val revocationOptions = EnumSet.of(PKIXRevocationChecker.Option.SOFT_FAIL)
+
+        // First, we must determine if we will check the entire chain, or just the end-entity.
+        if (!rootKnown) {
+            // If the root is not known, only check revocation status for the end-entity.
+            revocationOptions.add(PKIXRevocationChecker.Option.ONLY_END_ENTITY)
+        } else if (!intermediatesHaveAiaOcspUri && (hasOcspStaple || endEntityHasAiaOcspUri)) {
+            // If the intermediate certificates don't all have AIA OCSP URIs, but we have an OCSP
+            // staple for the end-entity, or the end-entity has an AIA OCSP URL, then only validate
+            // the end entity.
+            revocationOptions.add(PKIXRevocationChecker.Option.ONLY_END_ENTITY)
+        }
+        // In all other cases we default to checking the entire chain.
+
+        // Next, we must determine if we will prefer OCSP and fall back to CRLs, or if
+        // we should prefer CRLS and not fall back because we known OCSP checking will fail.
+        if (revocationOptions.contains(PKIXRevocationChecker.Option.ONLY_END_ENTITY)) {
+            // If we're only checking the end entity, the decision is simple:
+            // do we have a staple or AIA for the end-entity? If not, prefer CRL w/o fall
+            // back.
+            if (!hasOcspStaple && !endEntityHasAiaOcspUri) {
+                revocationOptions.add(PKIXRevocationChecker.Option.PREFER_CRLS)
+                revocationOptions.add(PKIXRevocationChecker.Option.NO_FALLBACK)
+            }
+        } else {
+            // If we're checking the entire chain, but don't have revocation information
+            // for the whole chain, we must prefer CRLs and not fall back to OCSP.
+            if (!intermediatesHaveAiaOcspUri || (!hasOcspStaple && !endEntityHasAiaOcspUri)) {
+                revocationOptions.add(PKIXRevocationChecker.Option.PREFER_CRLS)
+                revocationOptions.add(PKIXRevocationChecker.Option.NO_FALLBACK)
+            }
+        }
+        // In all other cases we'll prefer OCSP and fall-back to CRLS.
+
+        // TODO(@cpu): Remove log after debugging done? >:)
+        Log.d(TAG, "revocation checker options: $revocationOptions")
+
+        return revocationOptions
     }
 }
