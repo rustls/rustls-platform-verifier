@@ -77,6 +77,17 @@ impl Verifier {
             }
         }
 
+        // Safety: There's no way for the mutex to be locked multiple times, so this is
+        // an infallible operation.
+        let mut extra_roots = self.extra_roots.try_lock().unwrap();
+        if !extra_roots.is_empty() {
+            let count = extra_roots.len();
+            root_store.add_trust_anchors(&mut extra_roots.drain(..));
+            log::debug!(
+                "Loaded {count} extra CA certificates in addition to possible system roots",
+            );
+        }
+
         #[cfg(all(target_os = "linux", not(target_arch = "wasm32")))]
         match rustls_native_certs::load_native_certs() {
             Ok(certs) => {
@@ -92,25 +103,19 @@ impl Verifier {
                 } else {
                     log::debug!("Loaded {added} CA certificates from the system");
                 }
-
-                // Safety: There's no way for the mutex to be locked multiple times, so this is
-                //         an infallible operation.
-                let mut extra_roots = self.extra_roots.try_lock().unwrap();
-                if !extra_roots.is_empty() {
-                    let count = extra_roots.len();
-                    root_store.add_trust_anchors(&mut extra_roots.drain(..));
-                    log::debug!(
-                        "Loaded {count} extra CA certificates in addition to roots from the system",
-                    );
-                }
             }
             Err(err) => {
                 // This only contains a path to a system directory:
                 // https://github.com/rustls/rustls-native-certs/blob/bc13b9a6bfc2e1eec881597055ca49accddd972a/src/lib.rs#L91-L94
-                return Err(rustls::Error::General(format!(
-                    "failed to load system root certificates: {}",
-                    err
-                )));
+                const MSG: &str = "failed to load system root certificates: ";
+
+                // Don't return an error if this fails when other roots have already been loaded via
+                // `new_with_extra_roots`. It leads to extra failure cases where connections would otherwise still work.
+                if root_store.is_empty() {
+                    return Err(rustls::Error::General(format!("{MSG}{err}")));
+                } else {
+                    log::error!("{MSG}{err}");
+                }
             }
         };
 
