@@ -78,7 +78,7 @@ jobs:
 
       - name: Install cargo-ndk.
         run: |
-          cargo install cargo-ndk --version 2.12.7
+          cargo install cargo-ndk --locked --version 2.12.7
           rustup target add aarch64-linux-android
 
       - name: Clippy (${{ matrix.os }})
