@@ -247,6 +247,9 @@ internal object CertificateVerifier {
         // hostname verifier. Additionally, even the RFC 2818 verifier is not available until API 24.
         //
         // `serverName` is only used for pinning/CT requirements.
+        //
+        // Returns the "the properly ordered chain used for verification as a list of X509Certificates.",
+        // meaning a list from end-entity certificate to trust-anchor.
         val validChain = try {
             trustManager.checkServerTrusted(certificateChain.toTypedArray(), authMethod, serverName)
         } catch (e: CertificateException) {
@@ -317,7 +320,13 @@ internal object CertificateVerifier {
             }
 
             // Use the custom revocation definition.
+            // "Note that when a `PKIXRevocationChecker` is added to `PKIXParameters`, it clones the `PKIXRevocationChecker`;
+            // thus any subsequent modifications to the `PKIXRevocationChecker` have no effect."
+            //  - https://developer.android.com/reference/java/security/cert/PKIXRevocationChecker
             parameters.certPathCheckers = listOf(revocationChecker)
+            // "When supplying a revocation checker in this manner, it will be used to check revocation
+            // irrespective of the setting of the `RevocationEnabled` flag."
+            //  - https://developer.android.com/reference/java/security/cert/PKIXRevocationChecker
             parameters.isRevocationEnabled = false
 
             // Validate the revocation status of all non-root certificates in the chain.
