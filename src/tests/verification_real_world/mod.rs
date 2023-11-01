@@ -77,6 +77,14 @@ const VALID_UNRELATED_CHAIN: &[&[u8]] = &[
     include_bytes!("agilebits_com_valid_4.crt"),
 ];
 
+const LETSENCRYPT_ORG: &str = "letsencrypt.org";
+
+const VALID_LETSENCRYPT_ORG_CHAIN: &[&[u8]] = &[
+    include_bytes!("letsencrypt_org_valid_1.crt"),
+    include_bytes!("letsencrypt_org_valid_2.crt"),
+    include_bytes!("letsencrypt_org_valid_3.crt"),
+];
+
 macro_rules! real_world_test_cases {
     { $( $name:ident => $test_case:expr ),+ , } => {
         real_world_test_cases!(@ $($name => $test_case),+,);
@@ -200,6 +208,13 @@ real_world_test_cases! {
         chain: VALID_UNRELATED_CHAIN,
         stapled_ocsp: None,
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
+        other_error: no_error!(),
+    },
+    letsencrypt => TestCase {
+        reference_id: LETSENCRYPT_ORG,
+        chain: VALID_LETSENCRYPT_ORG_CHAIN,
+        stapled_ocsp: None,
+        expected_result: Ok(()),
         other_error: no_error!(),
     },
 
