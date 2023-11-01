@@ -276,38 +276,23 @@ internal object CertificateVerifier {
             //
             // 2: Likely because of 1, Android requires all issued certificates to have some form of
             // revocation included in their authority information. This doesn't work universally as
-            // internal CAs managed by companies aren't required to follow this (and generally don't),
-            // so verifying those certificates would fail.
+            // issuing certificates in use may omit authority access information (for example the
+            // Let's Encrypt R3 Intermediate Certificate).
             //
-            // Revocation checking has two factors:
-            //
-            // 1. Is the root CA known (installed in system trust store)?
-            // 2. Did the server staple an OSCP response for it's own leaf certificate?
-            //
-            // Thus the below revocation logic handles four cases:
-            //
-            // 1. Known root + OSCP stapled -> Full-chain revocation, no extra network use
-            // 2. Known root + no OSCP stapled -> Full-chain revocation, with extra network use
-            // 3. Unknown root + OSCP stapled -> End-entity-only revocation, no extra network use
-            // 4. Unknown root + no OSCP stapled -> End-entity-only revocation, with extra network use
+            // Given these constraints, the best option is to only check revocation information
+            // at the end-entity depth. We will prefer OCSP (to use stapled information if possible).
+            // If there is no stapled OCSP response, Android may use the network to attempt to fetch
+            // one. If OCSP checking fails, it may fall back to fetching CRLs. We allow "soft"
+            // failures, for example transient network errors.
             val parameters = PKIXBuilderParameters(keystore, null)
 
             val validator = CertPathValidator.getInstance("PKIX")
             val revocationChecker = validator.revocationChecker as PKIXRevocationChecker
 
-            // `PKIXRevocationChecker` checks the entire chain by default.
-            // We allow it to fail if there are network issues.
-            // If the chain's root is known, use this default setting for full-chain
-            // revocation (excludes root itself, see below).
-            // Else, only check revocation status for the end-entity.
-            revocationChecker.options = if (isKnownRoot(validChain.last())) {
-                EnumSet.of(PKIXRevocationChecker.Option.SOFT_FAIL)
-            } else {
-                EnumSet.of(
-                    PKIXRevocationChecker.Option.SOFT_FAIL,
-                    PKIXRevocationChecker.Option.ONLY_END_ENTITY
-                )
-            }
+            revocationChecker.options = EnumSet.of(
+                PKIXRevocationChecker.Option.SOFT_FAIL,
+                PKIXRevocationChecker.Option.ONLY_END_ENTITY
+            )
 
             // Use the OCSP data `rustls` provided, if present.
             // Its expected that the server only sends revocation data for its own leaf certificate.
@@ -329,14 +314,8 @@ internal object CertificateVerifier {
             //  - https://developer.android.com/reference/java/security/cert/PKIXRevocationChecker
             parameters.isRevocationEnabled = false
 
-            // Validate the revocation status of all non-root certificates in the chain.
+            // Validate the revocation status of the end entity certificate.
             try {
-                // `checkServerTrusted` always returns a trusted full chain. However, root CAs
-                // don't have revocation properties so attempting to validate them as such fails.
-                // To avoid this, always remove the root CA from the chain before validating its
-                // revocation status. This is identical to the `CERT_CHAIN_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT`
-                // flag in the Win32 API.
-                validChain.removeLast()
                 validator.validate(certFactory.generateCertPath(validChain), parameters)
             } catch (e: CertPathValidatorException) {
                 return VerificationResult(StatusCode.Revoked, e.toString())
@@ -382,63 +361,5 @@ internal object CertificateVerifier {
         }
 
         return String(hexChars)
-    }
-
-    // Check if CA root is known or not.
-    // Known means installed in root CA store, either a preset public CA or  a custom one installed by an enterprise.
-    // Function is public for testing only.
-    //
-    // Ref: https://source.chromium.org/chromium/chromium/src/+/main:net/android/java/src/org/chromium/net/X509Util.java;l=351
-    fun isKnownRoot(root: X509Certificate): Boolean {
-        // System keystore and cert directory must be non-null to perform checking
-        systemKeystore?.let { loadedSystemKeystore ->
-            systemCertificateDirectory?.let { loadedSystemCertificateDirectory ->
-
-                // Check the in-memory cache first
-                val key = Pair(root.subjectX500Principal, root.publicKey)
-                if (systemTrustAnchorCache.contains(key)) {
-                    return true
-                }
-
-                // System trust anchors are stored under a hash of the principal.
-                // In case of collisions, append number.
-                val hash = hashPrincipal(root.subjectX500Principal)
-                var i = 0
-                while (true) {
-                    val alias = "$hash.$i"
-
-                    if (!File(loadedSystemCertificateDirectory, alias).exists()) {
-                        break
-                    }
-
-                    val anchor = loadedSystemKeystore.getCertificate("system:$alias")
-
-                    // It's possible for `anchor` to be `null` if the user deleted a trust anchor.
-                    // Continue iterating as there may be further collisions after the deleted anchor.
-                    if (anchor == null) {
-                        continue
-                        // This should never happen
-                    } else if (anchor !is X509Certificate) {
-                        // SAFETY: This logs a unique identifier (hash value) only in cases where a file within the
-                        // system's root trust store is not a valid X509 certificate (extremely unlikely error).
-                        // The hash doesn't tell us any sensitive information about the invalid cert or reveal any of
-                        // its contents - it just lets us ID the bad file if a customer is having TLS failure issues.
-                        Log.e(TAG, "anchor is not a certificate, alias: $alias")
-                        continue
-                        // If subject and public key match, it's a system root.
-                    } else {
-                        if ((root.subjectX500Principal == anchor.subjectX500Principal) && (root.publicKey == anchor.publicKey)) {
-                            systemTrustAnchorCache.add(key)
-                            return true
-                        }
-                    }
-
-                    i += 1
-                }
-            }
-        }
-
-        // Not found in cache or store: non-public
-        return false
     }
 }

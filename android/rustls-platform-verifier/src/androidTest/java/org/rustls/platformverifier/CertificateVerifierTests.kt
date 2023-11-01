@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -50,23 +49,5 @@ class CertificateVerifierTests {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val result = verifyMockRootUsage(context)
         assertEquals(FAILURE_MSG, SUCCESS_MARKER, result)
-    }
-
-    // Note:
-    //
-    // - Full negative path (`CertificateVerifier`'s flow for unknown roots,
-    // end-entity-only revocation check) already exercised via `runMockTestSuite`.
-    //
-    // - Full positive path (`CertificateVerifier`'s flow for known roots,
-    // full-chain revocation check) already exercised via `runRealWorldTestSuite`.
-    @Test
-    fun runTestIsPublicRoot() {
-        val rootCAs = CertificateVerifier.getSystemRootCAs()
-
-        // Positive - can ID known roots
-        assertTrue(rootCAs.isNotEmpty())
-        for (ca in rootCAs) {
-            assertTrue(CertificateVerifier.isKnownRoot(ca))
-        }
     }
 }
