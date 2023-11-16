@@ -46,14 +46,6 @@ use crate::tests::assert_cert_error_eq;
 use rustls::{CertificateError, Error as TlsError};
 use std::convert::TryFrom;
 
-const SHARED_CHAIN: &[&[u8]] = &[
-    include_bytes!("1password_com_valid_2.crt"),
-    include_bytes!("1password_com_valid_3.crt"),
-    // XXX: This certificate is included for testing in environments that might need
-    // a cross-signed root certificate instead of the just the server-provided one.
-    include_bytes!("1password_com_valid_4.crt"),
-];
-
 // This is the certificate chain presented by one server for
 // my.1password.com when this test was updated 2022-09-22. It is
 // valid for *.1password.com and 1password.com from
@@ -67,22 +59,22 @@ const SHARED_CHAIN: &[&[u8]] = &[
 // You can update the cert file with `update_valid_1_cert.bash`
 const VALID_1PASSWORD_COM_CHAIN: &[&[u8]] = &[
     include_bytes!("1password_com_valid_1.crt"),
-    SHARED_CHAIN[0],
-    SHARED_CHAIN[1],
-    SHARED_CHAIN[2],
+    include_bytes!("1password_com_valid_2.crt"),
+    include_bytes!("1password_com_valid_3.crt"),
+    // XXX: This certificate is included for testing in environments that might need
+    // a cross-signed root certificate instead of the just the server-provided one.
+    include_bytes!("1password_com_valid_4.crt"),
 ];
 
 const MY_1PASSWORD_COM: &str = "my.1password.com";
 
 // A domain name for which `VALID_1PASSWORD_COM_CHAIN` isn't valid.
 const VALID_UNRELATED_DOMAIN: &str = "agilebits.com";
-// The chain is the same as `VALID_1PASSWORD_COM_CHAIN` except the
-// end-entity certificate is different.
 const VALID_UNRELATED_CHAIN: &[&[u8]] = &[
     include_bytes!("agilebits_com_valid_1.crt"),
-    SHARED_CHAIN[0],
-    SHARED_CHAIN[1],
-    SHARED_CHAIN[2],
+    include_bytes!("agilebits_com_valid_2.crt"),
+    include_bytes!("agilebits_com_valid_3.crt"),
+    include_bytes!("agilebits_com_valid_4.crt"),
 ];
 
 macro_rules! real_world_test_cases {
