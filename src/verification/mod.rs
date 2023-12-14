@@ -73,22 +73,3 @@ fn invalid_certificate(reason: impl Into<String>) -> rustls::Error {
 /// - id-kp-serverAuth
 // TODO: Chromium also allows for `OID_ANY_EKU` on Android.
 pub const ALLOWED_EKUS: &[&str] = &["1.3.6.1.5.5.7.3.1"];
-
-#[cfg(test)]
-mod tests {
-    use crate::tls_config;
-    use reqwest::ClientBuilder;
-
-    #[tokio::test]
-    async fn can_verify_server_cert() {
-        let builder = ClientBuilder::new().use_preconfigured_tls(tls_config());
-
-        let client = builder.build().expect("TLS builder should be accepted");
-
-        client
-            .get("https://my.1password.com/signin")
-            .send()
-            .await
-            .expect("tls verification should pass");
-    }
-}

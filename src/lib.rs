@@ -34,7 +34,7 @@ pub use tests::ffi::*;
 /// # Example
 ///
 /// This example shows how to use the custom verifier with the `reqwest` crate:
-/// ```no_run
+/// ```ignore
 /// # use reqwest::ClientBuilder;
 /// #[tokio::main]
 /// async fn main() {
@@ -46,6 +46,9 @@ pub use tests::ffi::*;
 ///     let _response = client.get("https://example.com").send().await;
 /// }
 /// ```
+///
+/// **Important:** You must ensure that your `reqwest` version is using the same Rustls
+/// version as this crate or it will panic when downcasting the `&dyn Any` verifier.
 ///
 /// If you require more control over the rustls `ClientConfig`, you can
 /// instantiate a [Verifier] with [Verifier::default] and then use it
