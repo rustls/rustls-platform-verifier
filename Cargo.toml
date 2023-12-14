@@ -67,10 +67,6 @@ security-framework-sys = { version = "2.4", features = ["OSX_10_14"] }
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["wincrypt", "winerror"] }
 
-[dev-dependencies]
-tokio = { version = "1.5", features = ["macros", "rt-multi-thread"] }
-reqwest = { version = "0.11.18", default-features = false, features = ["rustls-tls-manual-roots"] }
-
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]
 features = ["dbg", "docsrs"]
