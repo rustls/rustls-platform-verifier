@@ -30,13 +30,14 @@ fn query(domain: &str, path: &str) -> anyhow::Result<()> {
         .build()?
         .get(url)
         .send()?;
-    let tls_info: Option<&reqwest::tls::TlsInfo> = response.extensions().get();
-    if let Some(tls_info) = tls_info {
-        if let Some(der) = tls_info.peer_certificate() {
-            let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(path);
-            eprintln!("writing DER of {domain} to {}", path.display());
-            fs::write(path, der)?;
-        }
-    }
+    let Some(tls_info): Option<&reqwest::tls::TlsInfo> = response.extensions().get() else {
+        anyhow::bail!("no TLS info found");
+    };
+    let Some(der) = tls_info.peer_certificate() else {
+        anyhow::bail!("no TLS certificate found");
+    };
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(path);
+    eprintln!("writing DER of {domain} to {}", path.display());
+    fs::write(path, der)?;
     Ok(())
 }
