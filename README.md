@@ -27,11 +27,16 @@ This library supports the following platforms and flows:
 | WASM           | webpki roots                                  | webpki                               | No[^2]             |
 
 [^1]: On Android, revocation checking requires API version >= 24 (e.g. at least Android 7.0, August 2016).
-For newer devices that support revocation, Android requires certificates to specify a revocation provider
-for network fetch (including optionally stapled OSCP response only applies to chain's end-entity).
-This may cause revocation checking to fail for enterprise/internal CAs that don't properly issue an end-entity.
+When available, revocation checking is only performed for the end-entity certificate. If a stapled OCSP
+response for the end-entity cert isn't provided, and the certificate omits both a OCSP responder URL and 
+CRL distribution point to fetch revocation information from, revocation checking may fail.
 
-[^2]: <https://docs.rs/rustls/0.20.6/src/rustls/verify.rs.html#341>
+[^2]: The fall-back webpki verifier configured for Linux/WASM does not support providing CRLs for revocation
+checking. If you require revocation checking on these platforms, prefer constructing your own 
+`WebPkiServerVerifier`, providing necessary CRLs. See the Rustls [`ServerCertVerifierBuilder`] docs for more
+information.
+
+[ServerCertVerifierBuilder]: https://docs.rs/rustls/latest/rustls/client/struct.ServerCertVerifierBuilder.html
 
 ## Installation and setup
 On most platforms, no setup should be required beyond adding the dependency via `cargo`:
