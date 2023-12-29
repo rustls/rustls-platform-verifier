@@ -25,6 +25,7 @@ mod tests;
 // Re-export any exported functions that are required for
 // tests to run in a platform-native environment.
 #[cfg(feature = "ffi-testing")]
+#[cfg_attr(feature = "ffi-testing", allow(unused_imports))]
 pub use tests::ffi::*;
 
 /// Creates and returns a `rustls` configuration that verifies TLS
