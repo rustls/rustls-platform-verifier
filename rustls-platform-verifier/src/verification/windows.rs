@@ -36,7 +36,7 @@ use winapi::{
         CertAddEncodedCertificateToStore, CertCloseStore, CertFreeCertificateChain,
         CertFreeCertificateChainEngine, CertFreeCertificateContext, CertGetCertificateChain,
         CertOpenStore, CertSetCertificateContextProperty, CertVerifyCertificateChainPolicy,
-        AUTHTYPE_SERVER, CERT_CHAIN_CONTEXT, CERT_CHAIN_PARA,
+        AUTHTYPE_SERVER, CERT_CHAIN_CACHE_END_CERT, CERT_CHAIN_CONTEXT, CERT_CHAIN_PARA,
         CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS, CERT_CHAIN_POLICY_PARA,
         CERT_CHAIN_POLICY_SSL, CERT_CHAIN_POLICY_STATUS,
         CERT_CHAIN_REVOCATION_ACCUMULATIVE_TIMEOUT, CERT_CHAIN_REVOCATION_CHECK_END_CERT,
@@ -367,11 +367,14 @@ impl CertificateStore {
             }
         };
 
-        // `CERT_CHAIN_REVOCATION_CHECK_END_CERT` only checks revocation for end cert.
+        // `CERT_CHAIN_REVOCATION_CHECK_END_CERT` only checks revocation for end cert. See the crate's revocation documentation
+        // for more details.
         // `CERT_CHAIN_REVOCATION_ACCUMULATIVE_TIMEOUT` accumulates network retrievals timeouts
         // to limit network time and improve performance.
-        const FLAGS: u32 =
-            CERT_CHAIN_REVOCATION_CHECK_END_CERT | CERT_CHAIN_REVOCATION_ACCUMULATIVE_TIMEOUT;
+        // `CERT_CHAIN_CACHE_END_CERT` speeds up the common case of multiple connections to same server.
+        const FLAGS: u32 = CERT_CHAIN_REVOCATION_CHECK_END_CERT
+            | CERT_CHAIN_REVOCATION_ACCUMULATIVE_TIMEOUT
+            | CERT_CHAIN_CACHE_END_CERT;
 
         // Lowering URL retrieval timeout from default 15s to 10s to account for higher internet speeds
         parameters.dwUrlRetrievalTimeout = 10 * 1000; // milliseconds
@@ -391,12 +394,12 @@ impl CertificateStore {
             )
         };
 
-        let cert_chain = call_with_last_error(|| match nonnull_from_const_ptr(cert_chain) {
-            Some(c) if res == TRUE => Some(c),
+        // XXX: Windows will internally map the chain's `TrustStatus.dwErrorStatus` to a `dwError` when
+        // a chain policy is verified, so we only check for errors there.
+        call_with_last_error(|| match nonnull_from_const_ptr(cert_chain) {
+            Some(c) if res == TRUE => Some(CertChain { inner: c }),
             _ => None,
-        })?;
-
-        Ok(CertChain { inner: cert_chain })
+        })
     }
 }
 
