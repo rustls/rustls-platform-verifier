@@ -42,8 +42,8 @@
 //! Thus we don't expect these tests to be flaky w.r.t. that, except for
 //! potentially poor performance.     
 use super::TestCase;
-use crate::tests::assert_cert_error_eq;
-use rustls::{CertificateError, Error as TlsError};
+use crate::{tests::assert_cert_error_eq, Verifier};
+use rustls::{client::ServerCertVerifier, CertificateError, Error as TlsError};
 use std::convert::TryFrom;
 
 // This is the certificate chain presented by one server for
@@ -124,7 +124,7 @@ macro_rules! no_error {
 fn real_world_test<E: std::error::Error>(test_case: &TestCase<E>) {
     log::info!("verifying {:?}", test_case.expected_result);
 
-    let verifier = crate::verifier_for_testing();
+    let verifier = Verifier::new();
 
     let mut chain = test_case
         .chain

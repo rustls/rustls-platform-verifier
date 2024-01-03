@@ -82,7 +82,7 @@ const LOCALHOST_IPV6: &str = "::1";
 #[cfg(any(test, feature = "ffi-testing"))]
 #[cfg_attr(feature = "ffi-testing", allow(dead_code))]
 pub(super) fn verification_without_mock_root() {
-    let verifier = crate::verifier_for_testing();
+    let verifier = Verifier::new();
 
     let server_name = rustls::client::ServerName::try_from(EXAMPLE_COM).unwrap();
     let end_entity = rustls::Certificate(ROOT1_INT1_EXAMPLE_COM_GOOD.to_vec());
