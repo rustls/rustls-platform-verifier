@@ -1,5 +1,9 @@
 // Generates the test data files used in the tests in verification_mock.rs.
 //
+// After re-generating mock certificates be sure to also update the fixed
+// verification timestamp in `mod.rs`'s `verification_time` fn to match
+// the current time.
+//
 // The primary point of this program is to fully automate the creation of the
 // test data, with minimal tool dependencies (e.g. no OpenSSL), with low effort.
 //

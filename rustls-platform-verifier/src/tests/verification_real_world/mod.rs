@@ -22,13 +22,6 @@
 //! fetching then the trust anchors for these certificates might not be
 //! trusted by the operating system's root store.
 //!
-//! XXX: Currently these tests are a time-bomb because they validate the
-//! certificates as of the current system time, because the version of
-//! Rustls we use does not support passing in a different time. The newest
-//! version of Rustls does have that capability. We need to upgrade to that
-//! version of Rustls, and/or otherwise change these tests, before these
-//! certificates expire in Fall/Winter 2022.
-//!
 //! XXX: These tests should be using a stapled OCSP responses so that the
 //! (operating-system-based) verifier doesn't try to fetch an OCSP
 //! response or CRL certificate. However, until we can fix the validation
@@ -42,7 +35,8 @@
 //! Thus we don't expect these tests to be flaky w.r.t. that, except for
 //! potentially poor performance.     
 use super::TestCase;
-use crate::{tests::assert_cert_error_eq, Verifier};
+use crate::tests::{assert_cert_error_eq, verification_time};
+use crate::Verifier;
 use rustls::{client::ServerCertVerifier, CertificateError, Error as TlsError};
 use std::convert::TryFrom;
 
@@ -145,7 +139,7 @@ fn real_world_test<E: std::error::Error>(test_case: &TestCase<E>) {
             &server_name,
             &mut std::iter::empty(),
             stapled_ocsp,
-            std::time::SystemTime::now(),
+            test_case.verification_time,
         )
         .map(|_| ());
 
@@ -165,6 +159,7 @@ real_world_test_cases! {
         reference_id: MY_1PASSWORD_COM,
         chain: VALID_1PASSWORD_COM_CHAIN,
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Ok(()),
         other_error: no_error!(),
     },
@@ -173,6 +168,7 @@ real_world_test_cases! {
         reference_id: MY_1PASSWORD_COM,
         chain: VALID_1PASSWORD_COM_CHAIN,
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Ok(()),
         other_error: no_error!(),
     },
@@ -181,6 +177,7 @@ real_world_test_cases! {
         reference_id: "1password.com",
         chain: VALID_1PASSWORD_COM_CHAIN,
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Ok(()),
         other_error: no_error!(),
     },
@@ -189,6 +186,7 @@ real_world_test_cases! {
         reference_id: VALID_UNRELATED_DOMAIN,
         chain: VALID_1PASSWORD_COM_CHAIN,
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
         other_error: no_error!(),
     },
@@ -198,6 +196,7 @@ real_world_test_cases! {
         reference_id: VALID_UNRELATED_DOMAIN,
         chain: VALID_UNRELATED_CHAIN,
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Ok(()),
         other_error: no_error!(),
     },
@@ -207,6 +206,7 @@ real_world_test_cases! {
         reference_id: MY_1PASSWORD_COM,
         chain: VALID_UNRELATED_CHAIN,
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
         other_error: no_error!(),
     },
@@ -214,6 +214,7 @@ real_world_test_cases! {
         reference_id: LETSENCRYPT_ORG,
         chain: VALID_LETSENCRYPT_ORG_CHAIN,
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Ok(()),
         other_error: no_error!(),
     },
