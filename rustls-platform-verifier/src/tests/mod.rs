@@ -2,6 +2,7 @@
 pub mod ffi;
 
 use std::error::Error as StdError;
+use std::time::{Duration, SystemTime};
 
 mod verification_real_world;
 
@@ -18,6 +19,9 @@ struct TestCase<'a, E: StdError> {
 
     /// The stapled OCSP response given to us by Rustls, if any.
     pub stapled_ocsp: Option<&'a [u8]>,
+
+    /// The time to use as the current time for verification.
+    pub verification_time: SystemTime,
 
     pub expected_result: Result<(), TlsError>,
 
@@ -45,4 +49,14 @@ pub fn assert_cert_error_eq<E: StdError + PartialEq + 'static>(
     } else {
         assert_eq!(result, expected);
     }
+}
+
+/// Return a fixed [SystemTime] for certificate validation purposes.
+///
+/// We fix the "now" value used for certificate validation to a fixed point in time at which
+/// we know the test certificates are valid. This must be updated if the mock certificates
+/// are regenerated.
+pub(crate) fn verification_time() -> SystemTime {
+    // Wednesday, January 3, 2024 6:03:08 PM UTC
+    SystemTime::UNIX_EPOCH + Duration::from_secs(1_704_304_988)
 }

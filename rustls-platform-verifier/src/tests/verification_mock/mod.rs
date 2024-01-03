@@ -16,7 +16,7 @@
 #![cfg(all(any(windows, unix, target_os = "android"), not(target_os = "ios")))]
 
 use super::TestCase;
-use crate::tests::assert_cert_error_eq;
+use crate::tests::{assert_cert_error_eq, verification_time};
 use crate::verification::{EkuError, Verifier};
 use rustls::{client::ServerCertVerifier, CertificateError, Error as TlsError};
 use std::convert::TryFrom;
@@ -90,7 +90,7 @@ pub(super) fn verification_without_mock_root() {
         &server_name,
         &mut std::iter::empty(),
         &[],
-        std::time::SystemTime::now(),
+        verification_time(),
     );
 
     assert_eq!(
@@ -115,6 +115,7 @@ mock_root_test_cases! {
         reference_id: EXAMPLE_COM,
         chain: &[ROOT1_INT1_EXAMPLE_COM_GOOD, ROOT1_INT1],
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Ok(()),
         other_error: no_error!(),
     },
@@ -122,6 +123,7 @@ mock_root_test_cases! {
         reference_id: LOCALHOST_IPV4,
         chain: &[ROOT1_INT1_LOCALHOST_IPV4_GOOD, ROOT1_INT1],
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Ok(()),
         other_error: no_error!(),
     },
@@ -129,6 +131,7 @@ mock_root_test_cases! {
         reference_id: LOCALHOST_IPV6,
         chain: &[ROOT1_INT1_LOCALHOST_IPV6_GOOD, ROOT1_INT1],
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Ok(()),
         other_error: no_error!(),
     },
@@ -136,6 +139,7 @@ mock_root_test_cases! {
         reference_id: EXAMPLE_COM,
         chain: &[ROOT1_INT1_EXAMPLE_COM_GOOD, ROOT1_INT1],
         stapled_ocsp: Some(include_bytes!("root1-int1-ee_example.com-good.ocsp")),
+        verification_time: verification_time(),
         expected_result: Ok(()),
         other_error: no_error!(),
     },
@@ -143,6 +147,7 @@ mock_root_test_cases! {
         reference_id: LOCALHOST_IPV4,
         chain: &[ROOT1_INT1_LOCALHOST_IPV4_GOOD, ROOT1_INT1],
         stapled_ocsp: Some(include_bytes!("root1-int1-ee_127.0.0.1-good.ocsp")),
+        verification_time: verification_time(),
         expected_result: Ok(()),
         other_error: no_error!(),
     },
@@ -150,6 +155,7 @@ mock_root_test_cases! {
         reference_id: LOCALHOST_IPV6,
         chain: &[ROOT1_INT1_LOCALHOST_IPV6_GOOD, ROOT1_INT1],
         stapled_ocsp: Some(include_bytes!("root1-int1-ee_1-good.ocsp")),
+        verification_time: verification_time(),
         expected_result: Ok(()),
         other_error: no_error!(),
     },
@@ -161,6 +167,7 @@ mock_root_test_cases! {
         reference_id: EXAMPLE_COM,
         chain: &[include_bytes!("root1-int1-ee_example.com-revoked.crt"), ROOT1_INT1],
         stapled_ocsp: Some(include_bytes!("root1-int1-ee_example.com-revoked.ocsp")),
+        verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::Revoked)),
         other_error: no_error!(),
     },
@@ -168,6 +175,7 @@ mock_root_test_cases! {
         reference_id: LOCALHOST_IPV4,
         chain: &[include_bytes!("root1-int1-ee_127.0.0.1-revoked.crt"), ROOT1_INT1],
         stapled_ocsp: Some(include_bytes!("root1-int1-ee_127.0.0.1-revoked.ocsp")),
+        verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::Revoked)),
         other_error: no_error!(),
     },
@@ -175,6 +183,7 @@ mock_root_test_cases! {
         reference_id: LOCALHOST_IPV6,
         chain: &[include_bytes!("root1-int1-ee_1-revoked.crt"), ROOT1_INT1],
         stapled_ocsp: Some(include_bytes!("root1-int1-ee_1-revoked.ocsp")),
+        verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::Revoked)),
         other_error: no_error!(),
     },
@@ -187,6 +196,7 @@ mock_root_test_cases! {
         reference_id: EXAMPLE_COM,
         chain: &[ROOT1_INT1_EXAMPLE_COM_GOOD],
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::UnknownIssuer)),
         other_error: no_error!(),
     },
@@ -194,6 +204,7 @@ mock_root_test_cases! {
         reference_id: LOCALHOST_IPV4,
         chain: &[ROOT1_INT1_LOCALHOST_IPV4_GOOD],
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::UnknownIssuer)),
         other_error: no_error!(),
     },
@@ -201,6 +212,7 @@ mock_root_test_cases! {
         reference_id: LOCALHOST_IPV6,
         chain: &[ROOT1_INT1_LOCALHOST_IPV6_GOOD],
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::UnknownIssuer)),
         other_error: no_error!(),
     },
@@ -209,6 +221,7 @@ mock_root_test_cases! {
         reference_id: "example.org",
         chain: &[ROOT1_INT1_EXAMPLE_COM_GOOD, ROOT1_INT1],
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
         other_error: no_error!(),
     },
@@ -216,6 +229,7 @@ mock_root_test_cases! {
         reference_id: "198.168.0.1",
         chain: &[ROOT1_INT1_LOCALHOST_IPV4_GOOD, ROOT1_INT1],
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
         other_error: no_error!(),
     },
@@ -223,6 +237,7 @@ mock_root_test_cases! {
         reference_id: "::ffff:c6a8:1",
         chain: &[ROOT1_INT1_LOCALHOST_IPV6_GOOD, ROOT1_INT1],
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
         other_error: no_error!(),
     },
@@ -230,6 +245,7 @@ mock_root_test_cases! {
         reference_id: EXAMPLE_COM,
         chain: &[include_bytes!("root1-int1-ee_example.com-wrong_eku.crt"), ROOT1_INT1],
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(
             CertificateError::Other(Arc::from(EkuError)))),
         other_error: Some(EkuError),
@@ -238,6 +254,7 @@ mock_root_test_cases! {
         reference_id: LOCALHOST_IPV4,
         chain: &[include_bytes!("root1-int1-ee_127.0.0.1-wrong_eku.crt"), ROOT1_INT1],
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(
             CertificateError::Other(Arc::from(EkuError)))),
         other_error: Some(EkuError),
@@ -246,6 +263,7 @@ mock_root_test_cases! {
         reference_id: LOCALHOST_IPV6,
         chain: &[include_bytes!("root1-int1-ee_1-wrong_eku.crt"), ROOT1_INT1],
         stapled_ocsp: None,
+        verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(
             CertificateError::Other(Arc::from(EkuError)))),
         other_error: Some(EkuError),
@@ -284,7 +302,7 @@ fn test_with_mock_root<E: std::error::Error + PartialEq + 'static>(test_case: &T
         &server_name,
         &mut std::iter::empty(),
         test_case.stapled_ocsp.unwrap_or(&[]),
-        std::time::SystemTime::now(),
+        test_case.verification_time,
     );
 
     assert_cert_error_eq(
