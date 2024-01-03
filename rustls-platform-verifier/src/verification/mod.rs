@@ -48,29 +48,23 @@ impl std::error::Error for EkuError {}
 
 // Log the certificate we are verifying so that we can try and find what may be wrong with it
 // if we need to debug a user's situation.
-fn log_server_cert(_end_entity: &rustls::Certificate) {
+fn log_server_cert(_end_entity: &rustls::pki_types::CertificateDer<'_>) {
     #[cfg(feature = "cert-logging")]
     {
         use base64::Engine;
         log::debug!(
             "verifying certificate: {}",
-            base64::engine::general_purpose::STANDARD.encode(&_end_entity.0)
+            base64::engine::general_purpose::STANDARD.encode(_end_entity.as_ref())
         );
     }
-}
-
-#[cfg(any(windows, target_os = "android", target_os = "macos", target_os = "ios"))]
-fn unsupported_server_name() -> rustls::Error {
-    log::error!("TLS error: unsupported name type");
-    rustls::Error::UnsupportedNameType
 }
 
 // Unknown certificate error shorthand. Used when we need to construct an "Other" certificate
 // error with a platform specific error message.
 #[cfg(any(windows, target_os = "macos", target_os = "ios"))]
 fn invalid_certificate(reason: impl Into<String>) -> rustls::Error {
-    rustls::Error::InvalidCertificate(rustls::CertificateError::Other(std::sync::Arc::from(
-        Box::from(reason.into()),
+    rustls::Error::InvalidCertificate(rustls::CertificateError::Other(rustls::OtherError(
+        std::sync::Arc::from(Box::from(reason.into())),
     )))
 }
 

@@ -18,11 +18,14 @@
 //! [Microsoft's Documentation]: <https://docs.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certgetcertificatechain>
 //! [Microsoft's Example]: <https://docs.microsoft.com/en-us/windows/win32/seccrypto/example-c-program-creating-a-certificate-chain>
 
-use super::{log_server_cert, unsupported_server_name, ALLOWED_EKUS};
+use super::{log_server_cert, ALLOWED_EKUS};
 use crate::windows::{
     c_void_from_ref, c_void_from_ref_mut, nonnull_from_const_ptr, ZeroedWithSize,
 };
-use rustls::{client::ServerCertVerifier, CertificateError, Error as TlsError};
+use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerifier};
+use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, CryptoProvider};
+use rustls::pki_types;
+use rustls::{CertificateError, DigitallySignedStruct, Error as TlsError, SignatureScheme};
 use winapi::{
     shared::{
         minwindef::{FILETIME, TRUE},
@@ -52,7 +55,6 @@ use std::{
     convert::TryInto,
     mem::{self, MaybeUninit},
     ptr::{self, NonNull},
-    time::SystemTime,
 };
 
 use crate::verification::invalid_certificate;
@@ -328,7 +330,7 @@ impl CertificateStore {
     fn new_chain_in(
         &self,
         certificate: &Certificate,
-        now: SystemTime,
+        now: pki_types::UnixTime,
     ) -> Result<CertChain, TlsError> {
         let mut cert_chain = ptr::null();
 
@@ -351,15 +353,13 @@ impl CertificateStore {
             const UNIX_ADJUSTMENT: std::time::Duration =
                 std::time::Duration::from_secs(11_644_473_600);
 
-            let since_unix_epoch = now
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .map_err(|_| TlsError::FailedToGetCurrentTime)?;
+            let since_unix_epoch = now.as_secs();
 
             // Convert the duration from the UNIX epoch to the Window one, and then convert
             // the result into a `FILETIME` structure.
 
-            let since_windows_epoch = since_unix_epoch + UNIX_ADJUSTMENT;
-            let intervals = (since_windows_epoch.as_nanos() / 100) as u64;
+            let since_windows_epoch = since_unix_epoch + UNIX_ADJUSTMENT.as_secs();
+            let intervals = (since_windows_epoch * 1_000_000_000) / 100;
 
             FILETIME {
                 dwLowDateTime: (intervals & u32::MAX as u64) as u32,
@@ -414,11 +414,12 @@ fn call_with_last_error<T, F: FnMut() -> Option<T>>(mut call: F) -> Result<T, Tl
 }
 
 /// A TLS certificate verifier that utilizes the Windows certificate facilities.
-#[derive(Default)]
+#[derive(Debug)]
 pub struct Verifier {
     /// Testing only: The root CA certificate to trust.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
     test_only_root_ca_override: Option<Vec<u8>>,
+    default_provider: CryptoProvider,
 }
 
 impl Verifier {
@@ -428,6 +429,7 @@ impl Verifier {
         Self {
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
+            default_provider: rustls::crypto::ring::default_provider(),
         }
     }
 
@@ -436,6 +438,7 @@ impl Verifier {
     pub(crate) fn new_with_fake_root(root: &[u8]) -> Self {
         Self {
             test_only_root_ca_override: Some(root.into()),
+            default_provider: rustls::crypto::ring::default_provider(),
         }
     }
 
@@ -448,7 +451,7 @@ impl Verifier {
         intermediate_certs: &[&[u8]],
         server: &[u8],
         ocsp_data: Option<&[u8]>,
-        now: SystemTime,
+        now: pki_types::UnixTime,
     ) -> Result<(), TlsError> {
         #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
         let mut store = match self.test_only_root_ca_override.as_ref() {
@@ -526,26 +529,17 @@ fn size_of_struct<T>(val: &T) -> u32 {
 impl ServerCertVerifier for Verifier {
     fn verify_server_cert(
         &self,
-        end_entity: &rustls::Certificate,
-        intermediates: &[rustls::Certificate],
-        server_name: &rustls::client::ServerName,
-        _scts: &mut dyn Iterator<Item = &[u8]>,
+        end_entity: &pki_types::CertificateDer<'_>,
+        intermediates: &[pki_types::CertificateDer<'_>],
+        server_name: &pki_types::ServerName,
         ocsp_response: &[u8],
-        now: SystemTime,
-    ) -> Result<rustls::client::ServerCertVerified, TlsError> {
+        now: pki_types::UnixTime,
+    ) -> Result<rustls::client::danger::ServerCertVerified, TlsError> {
         log_server_cert(end_entity);
 
-        let ip_name;
-        let name = match server_name {
-            rustls::ServerName::DnsName(name) => name.as_ref(),
-            rustls::ServerName::IpAddress(addr) => {
-                ip_name = addr.to_string();
-                &ip_name
-            }
-            _ => return Err(unsupported_server_name()),
-        };
+        let name = server_name.to_str();
 
-        let intermediate_certs: Vec<&[u8]> = intermediates.iter().map(|c| c.0.as_slice()).collect();
+        let intermediate_certs: Vec<&[u8]> = intermediates.iter().map(|c| c.as_ref()).collect();
 
         let ocsp_data = if !ocsp_response.is_empty() {
             Some(ocsp_response)
@@ -554,13 +548,13 @@ impl ServerCertVerifier for Verifier {
         };
 
         match self.verify_certificate(
-            &end_entity.0,
+            end_entity.as_ref(),
             &intermediate_certs,
             name.as_bytes(),
             ocsp_data,
             now,
         ) {
-            Ok(()) => Ok(rustls::client::ServerCertVerified::assertion()),
+            Ok(()) => Ok(rustls::client::danger::ServerCertVerified::assertion()),
             Err(e) => {
                 // SAFETY:
                 // Errors are our own custom errors, WinAPI errors, or static strings.
@@ -568,5 +562,45 @@ impl ServerCertVerifier for Verifier {
                 Err(e)
             }
         }
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &pki_types::CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, TlsError> {
+        verify_tls12_signature(
+            message,
+            cert,
+            dss,
+            &self.default_provider.signature_verification_algorithms,
+        )
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &pki_types::CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, TlsError> {
+        verify_tls13_signature(
+            message,
+            cert,
+            dss,
+            &self.default_provider.signature_verification_algorithms,
+        )
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        self.default_provider
+            .signature_verification_algorithms
+            .supported_schemes()
+    }
+}
+
+impl Default for Verifier {
+    fn default() -> Self {
+        Self::new()
     }
 }
