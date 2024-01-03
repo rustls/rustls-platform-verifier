@@ -60,18 +60,13 @@ pub use tests::ffi::*;
 pub fn tls_config() -> ClientConfig {
     rustls::ClientConfig::builder()
         .with_safe_defaults()
-        .with_custom_certificate_verifier(verifier_for_testing())
+        .with_custom_certificate_verifier(Arc::new(Verifier::new()))
         .with_no_client_auth()
 }
 
-/// Exposed for test usage. Don't use this, use [tls_config] instead.
+/// Exposed for debugging certificate issues with standalone tools.
 ///
-/// This verifier must be exactly equivalent to the verifier used in the `ClientConfig` returned by [tls_config].
-pub(crate) fn verifier_for_testing() -> Arc<dyn rustls::client::ServerCertVerifier> {
-    Arc::new(Verifier::new())
-}
-
-/// Exposed for debugging customer certificate issues. Don't use this, use [tls_config] instead.
+/// This is not intended for production use, you should use [tls_config] instead.
 #[cfg(feature = "dbg")]
 pub fn verifier_for_dbg(root: &[u8]) -> Arc<dyn rustls::client::ServerCertVerifier> {
     Arc::new(Verifier::new_with_fake_root(root))
