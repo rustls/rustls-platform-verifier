@@ -41,16 +41,16 @@ use rustls::{client::ServerCertVerifier, CertificateError, Error as TlsError};
 use std::convert::TryFrom;
 
 // This is the certificate chain presented by one server for
-// my.1password.com when this test was updated 2022-09-22. It is
+// my.1password.com when this test was updated 2023-08-01. It is
 // valid for *.1password.com and 1password.com from
-// "Jul 24 00:00:00 2022 GMT" through "Aug 22 23:59:59 2023 GMT".
+// "Jun 24 00:00:00 2023 GMT" through "Jul 22 23:59:59 2024 GMT".
 //
 // Use this to template view the certificate using OpenSSL:
 // ```sh
 // openssl x509 -inform der -text -in 1password_com_valid_1.crt | less
 // ```
 //
-// You can update the cert file with `update_valid_1_cert.bash`
+// You can update the cert file with `update_valid_ee_certs.rs`
 const VALID_1PASSWORD_COM_CHAIN: &[&[u8]] = &[
     include_bytes!("1password_com_valid_1.crt"),
     include_bytes!("1password_com_valid_2.crt"),
