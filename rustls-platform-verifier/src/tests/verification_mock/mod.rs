@@ -18,7 +18,9 @@
 use super::TestCase;
 use crate::tests::{assert_cert_error_eq, verification_time};
 use crate::verification::{EkuError, Verifier};
-use rustls::{client::ServerCertVerifier, CertificateError, Error as TlsError};
+use rustls::client::danger::ServerCertVerifier;
+use rustls::pki_types;
+use rustls::{CertificateError, Error as TlsError, OtherError};
 use std::convert::TryFrom;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -77,18 +79,28 @@ const LOCALHOST_IPV6: &str = "::1";
 #[cfg(any(test, feature = "ffi-testing"))]
 #[cfg_attr(feature = "ffi-testing", allow(dead_code))]
 pub(super) fn verification_without_mock_root() {
+    // Since Rustls 0.22 constructing a webpki verifier (like the one backing Verifier on unix
+    // systems) without any roots produces `OtherError(NoRootAnchors)` - since our FreeBSD CI
+    // runner fails to find any roots with openssl-probe we need to provide webpki-roots here
+    // or the test will fail with the `OtherError` instead of the expected `CertificateError`.
+    #[cfg(target_os = "freebsd")]
+    let verifier = Verifier::new_with_extra_roots(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+
+    #[cfg(not(target_os = "freebsd"))]
     let verifier = Verifier::new();
 
-    let server_name = rustls::client::ServerName::try_from(EXAMPLE_COM).unwrap();
-    let end_entity = rustls::Certificate(ROOT1_INT1_EXAMPLE_COM_GOOD.to_vec());
-    let intermediates = [rustls::Certificate(ROOT1_INT1.to_vec())];
+    let server_name = pki_types::ServerName::try_from(EXAMPLE_COM).unwrap();
+    let end_entity = pki_types::CertificateDer::from(ROOT1_INT1_EXAMPLE_COM_GOOD);
+    let intermediates = [pki_types::CertificateDer::from(ROOT1_INT1)];
 
     // Fails because the server cert has no trust root in Windows, and can't since it uses a self-signed CA.
+    // Similarly on UNIX platforms using the Webpki verifier, it can't fetch extra certificates through
+    // AIA chasing or other mechanisms, and so we know this test will correctly verify an unknown
+    // root in a chain fails validation.
     let result = verifier.verify_server_cert(
         &end_entity,
         &intermediates,
         &server_name,
-        &mut std::iter::empty(),
         &[],
         verification_time(),
     );
@@ -247,7 +259,7 @@ mock_root_test_cases! {
         stapled_ocsp: None,
         verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(
-            CertificateError::Other(Arc::from(EkuError)))),
+            CertificateError::Other(OtherError(Arc::from(EkuError))))),
         other_error: Some(EkuError),
     },
     wrong_eku_ipv4 [ any(windows, unix) ] => TestCase {
@@ -256,7 +268,7 @@ mock_root_test_cases! {
         stapled_ocsp: None,
         verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(
-            CertificateError::Other(Arc::from(EkuError)))),
+            CertificateError::Other(OtherError(Arc::from(EkuError))))),
         other_error: Some(EkuError),
     },
     wrong_eku_ipv6 [ any(windows, unix) ] => TestCase {
@@ -265,7 +277,7 @@ mock_root_test_cases! {
         stapled_ocsp: None,
         verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(
-            CertificateError::Other(Arc::from(EkuError)))),
+            CertificateError::Other(OtherError(Arc::from(EkuError))))),
         other_error: Some(EkuError),
     },
 }
@@ -277,30 +289,23 @@ fn test_with_mock_root<E: std::error::Error + PartialEq + 'static>(test_case: &T
     let mut chain = test_case
         .chain
         .iter()
-        .map(|bytes| rustls::Certificate(bytes.to_vec()));
+        .map(|bytes| pki_types::CertificateDer::from(*bytes));
 
     let end_entity = chain.next().unwrap();
-    let intermediates: Vec<rustls::Certificate> = chain.collect();
+    let intermediates: Vec<pki_types::CertificateDer<'_>> = chain.collect();
 
-    let server_name = rustls::client::ServerName::try_from(test_case.reference_id).unwrap();
+    let server_name = pki_types::ServerName::try_from(test_case.reference_id).unwrap();
 
     if test_case.reference_id.parse::<IpAddr>().is_ok() {
-        assert!(matches!(
-            server_name,
-            rustls::client::ServerName::IpAddress(_)
-        ));
+        assert!(matches!(server_name, pki_types::ServerName::IpAddress(_)));
     } else {
-        assert!(matches!(
-            server_name,
-            rustls::client::ServerName::DnsName(_)
-        ));
+        assert!(matches!(server_name, pki_types::ServerName::DnsName(_)));
     }
 
     let result = verifier.verify_server_cert(
         &end_entity,
         &intermediates,
         &server_name,
-        &mut std::iter::empty(),
         test_case.stapled_ocsp.unwrap_or(&[]),
         test_case.verification_time,
     );

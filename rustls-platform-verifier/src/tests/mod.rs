@@ -2,13 +2,13 @@
 pub mod ffi;
 
 use std::error::Error as StdError;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 mod verification_real_world;
 
 mod verification_mock;
 
-use rustls::{CertificateError, Error as TlsError, Error::InvalidCertificate};
+use rustls::{pki_types, CertificateError, Error as TlsError, Error::InvalidCertificate};
 
 struct TestCase<'a, E: StdError> {
     /// The name of the server we're connecting to.
@@ -21,7 +21,7 @@ struct TestCase<'a, E: StdError> {
     pub stapled_ocsp: Option<&'a [u8]>,
 
     /// The time to use as the current time for verification.
-    pub verification_time: SystemTime,
+    pub verification_time: pki_types::UnixTime,
 
     pub expected_result: Result<(), TlsError>,
 
@@ -43,6 +43,7 @@ pub fn assert_cert_error_eq<E: StdError + PartialEq + 'static>(
     if let Err(InvalidCertificate(CertificateError::Other(err))) = &expected {
         let expected_err = expected_err.expect("error not provided for `Other` case handling");
         let err: &E = err
+            .0
             .downcast_ref()
             .expect("incorrect `Other` inner error kind");
         assert_eq!(err, expected_err);
@@ -56,7 +57,7 @@ pub fn assert_cert_error_eq<E: StdError + PartialEq + 'static>(
 /// We fix the "now" value used for certificate validation to a fixed point in time at which
 /// we know the test certificates are valid. This must be updated if the mock certificates
 /// are regenerated.
-pub(crate) fn verification_time() -> SystemTime {
+pub(crate) fn verification_time() -> pki_types::UnixTime {
     // Wednesday, January 3, 2024 6:03:08 PM UTC
-    SystemTime::UNIX_EPOCH + Duration::from_secs(1_704_304_988)
+    pki_types::UnixTime::since_unix_epoch(Duration::from_secs(1_704_304_988))
 }

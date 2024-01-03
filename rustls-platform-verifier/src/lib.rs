@@ -54,13 +54,13 @@ pub use tests::ffi::*;
 ///
 /// If you require more control over the rustls `ClientConfig`, you can
 /// instantiate a [Verifier] with [Verifier::default] and then use it
-/// with [rustls::ConfigBuilder::with_custom_certificate_verifier].
+/// with [rustls::ConfigBuilder::dangerous::with_custom_certificate_verifier].
 ///
 /// Refer to the crate level documentation to see what platforms
 /// are currently supported.
 pub fn tls_config() -> ClientConfig {
-    rustls::ClientConfig::builder()
-        .with_safe_defaults()
+    ClientConfig::builder()
+        .dangerous()
         .with_custom_certificate_verifier(Arc::new(Verifier::new()))
         .with_no_client_auth()
 }
@@ -69,6 +69,6 @@ pub fn tls_config() -> ClientConfig {
 ///
 /// This is not intended for production use, you should use [tls_config] instead.
 #[cfg(feature = "dbg")]
-pub fn verifier_for_dbg(root: &[u8]) -> Arc<dyn rustls::client::ServerCertVerifier> {
+pub fn verifier_for_dbg(root: &[u8]) -> Arc<dyn rustls::client::danger::ServerCertVerifier> {
     Arc::new(Verifier::new_with_fake_root(root))
 }

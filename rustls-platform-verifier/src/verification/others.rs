@@ -1,13 +1,16 @@
 use super::log_server_cert;
 use once_cell::sync::OnceCell;
+use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+use rustls::client::WebPkiServerVerifier;
+use rustls::pki_types;
 use rustls::{
-    client::{ServerCertVerifier, WebPkiVerifier},
-    CertificateError, Error as TlsError,
+    CertificateError, DigitallySignedStruct, Error as TlsError, OtherError, SignatureScheme,
 };
-use std::sync::Mutex;
+use std::fmt::Debug;
+use std::sync::{Arc, Mutex};
 
 /// A TLS certificate verifier that uses the system's root store and WebPKI.
-#[derive(Default)]
+#[derive(Debug)]
 pub struct Verifier {
     // We use a `OnceCell` so we only need
     // to try loading native root certs once per verifier.
@@ -16,11 +19,11 @@ pub struct Verifier {
     // locking and unlocking the application will pull fresh root
     // certificates from disk, picking up on any changes
     // that might have been made since.
-    inner: OnceCell<WebPkiVerifier>,
+    inner: OnceCell<Arc<WebPkiServerVerifier>>,
 
     // Extra trust anchors to add to the verifier above and beyond those provided by the
     // platform via rustls-native-certs.
-    extra_roots: Mutex<Vec<rustls::OwnedTrustAnchor>>,
+    extra_roots: Mutex<Vec<pki_types::TrustAnchor<'static>>>,
 
     /// Testing only: an additional root CA certificate to trust.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
@@ -42,7 +45,9 @@ impl Verifier {
     /// Creates a new verifier whose certificate validation is provided by
     /// WebPKI, using root certificates provided by the platform and augmented by
     /// the provided extra root certificates.
-    pub fn new_with_extra_roots(roots: impl IntoIterator<Item = rustls::OwnedTrustAnchor>) -> Self {
+    pub fn new_with_extra_roots(
+        roots: impl IntoIterator<Item = pki_types::TrustAnchor<'static>>,
+    ) -> Self {
         Self {
             inner: OnceCell::new(),
             extra_roots: roots.into_iter().collect::<Vec<_>>().into(),
@@ -61,19 +66,28 @@ impl Verifier {
         }
     }
 
+    fn get_or_init_verifier(&self) -> Result<&Arc<WebPkiServerVerifier>, TlsError> {
+        self.inner.get_or_try_init(|| self.init_verifier())
+    }
+
     // Attempt to load CA root certificates present on system, fallback to WebPKI roots if error
-    fn init_verifier(&self) -> Result<WebPkiVerifier, TlsError> {
+    fn init_verifier(&self) -> Result<Arc<WebPkiServerVerifier>, TlsError> {
         let mut root_store = rustls::RootCertStore::empty();
 
         // For testing only: load fake root cert, instead of native/WebPKI roots
         #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
         {
             if let Some(test_root) = &self.test_only_root_ca_override {
-                let (added, ignored) = root_store.add_parsable_certificates(&[test_root.clone()]);
+                let (added, ignored) =
+                    root_store.add_parsable_certificates([pki_types::CertificateDer::from(
+                        test_root.as_ref(),
+                    )]);
                 if (added != 1) || (ignored != 0) {
                     panic!("Failed to insert fake, test-only root trust anchor");
                 }
-                return Ok(WebPkiVerifier::new(root_store, None));
+                return Ok(WebPkiServerVerifier::builder(root_store.into())
+                    .build()
+                    .unwrap());
             }
         }
 
@@ -82,7 +96,7 @@ impl Verifier {
         let mut extra_roots = self.extra_roots.try_lock().unwrap();
         if !extra_roots.is_empty() {
             let count = extra_roots.len();
-            root_store.add_trust_anchors(&mut extra_roots.drain(..));
+            root_store.extend(extra_roots.drain(..));
             log::debug!(
                 "Loaded {count} extra CA certificates in addition to possible system roots",
             );
@@ -91,8 +105,7 @@ impl Verifier {
         #[cfg(all(target_os = "linux", not(target_arch = "wasm32")))]
         match rustls_native_certs::load_native_certs() {
             Ok(certs) => {
-                let certs: Vec<Vec<u8>> = certs.into_iter().map(|c| c.0).collect();
-                let (added, ignored) = root_store.add_parsable_certificates(&certs);
+                let (added, ignored) = root_store.add_parsable_certificates(certs);
 
                 if ignored != 0 {
                     log::warn!("Some CA root certificates were ignored due to errors");
@@ -130,37 +143,25 @@ impl Verifier {
             }));
         };
 
-        Ok(WebPkiVerifier::new(root_store, None))
+        WebPkiServerVerifier::builder(root_store.into())
+            .build()
+            .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))
     }
 }
 
 impl ServerCertVerifier for Verifier {
     fn verify_server_cert(
         &self,
-        end_entity: &rustls::Certificate,
-        intermediates: &[rustls::Certificate],
-        server_name: &rustls::ServerName,
-        _scts: &mut dyn Iterator<Item = &[u8]>,
+        end_entity: &pki_types::CertificateDer<'_>,
+        intermediates: &[pki_types::CertificateDer<'_>],
+        server_name: &pki_types::ServerName,
         ocsp_response: &[u8],
-        now: std::time::SystemTime,
-    ) -> Result<rustls::client::ServerCertVerified, TlsError> {
+        now: pki_types::UnixTime,
+    ) -> Result<ServerCertVerified, TlsError> {
         log_server_cert(end_entity);
 
-        let verifier = self.inner.get_or_try_init(|| self.init_verifier())?;
-
-        verifier
-            .verify_server_cert(
-                end_entity,
-                intermediates,
-                server_name,
-                // We currently ignore certificate transparency data so that
-                // WebPKI doesn't verify it. Since none of the other platforms currently
-                // don't want possibly-bad CT data to cause problems on one platform but not
-                // others. On top of that, rustls's verification of it is currently "best effort."
-                &mut std::iter::empty(),
-                ocsp_response,
-                now,
-            )
+        self.get_or_init_verifier()?
+            .verify_server_cert(end_entity, intermediates, server_name, ocsp_response, now)
             .map_err(map_webpki_errors)
             // This only contains information from the system or other public
             // bits of the TLS handshake, so it can't leak anything.
@@ -169,15 +170,49 @@ impl ServerCertVerifier for Verifier {
                 e
             })
     }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &pki_types::CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, TlsError> {
+        self.get_or_init_verifier()?
+            .verify_tls12_signature(message, cert, dss)
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &pki_types::CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, TlsError> {
+        self.get_or_init_verifier()?
+            .verify_tls13_signature(message, cert, dss)
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        match self.get_or_init_verifier() {
+            Ok(v) => v.supported_verify_schemes(),
+            Err(_) => Vec::default(),
+        }
+    }
+}
+
+impl Default for Verifier {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 fn map_webpki_errors(err: TlsError) -> TlsError {
     if let TlsError::InvalidCertificate(CertificateError::Other(other_err)) = &err {
-        if let Some(webpki::Error::RequiredEkuNotFound) = other_err.downcast_ref::<webpki::Error>()
+        if let Some(webpki::Error::RequiredEkuNotFound) =
+            other_err.0.downcast_ref::<webpki::Error>()
         {
-            return TlsError::InvalidCertificate(CertificateError::Other(std::sync::Arc::new(
+            return TlsError::InvalidCertificate(CertificateError::Other(OtherError(Arc::new(
                 super::EkuError,
-            )));
+            ))));
         }
     }
 
