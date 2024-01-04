@@ -162,6 +162,28 @@ jobs:
 
       # TODO: Test iOS in CI too.
 
+  test-freebsd:
+    name: Test (FreeBSD)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: test on freebsd
+        uses: vmactions/freebsd-vm@v1
+        # Settings adopted from https://github.com/quinn-rs/quinn
+        with:
+          usesh: true
+          mem: 4096
+          copyback: false
+          prepare: |
+            pkg install -y curl
+            curl https://sh.rustup.rs -sSf --output rustup.sh
+            sh rustup.sh -y --profile minimal --default-toolchain stable
+            echo "~~~~ rustc --version ~~~~"
+            $HOME/.cargo/bin/rustc --version
+            echo "~~~~ freebsd-version ~~~~"
+            freebsd-version
+          run: $HOME/.cargo/bin/cargo test
+
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
