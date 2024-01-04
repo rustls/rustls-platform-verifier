@@ -1,4 +1,4 @@
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 #![warn(missing_docs)]
 
@@ -9,9 +9,10 @@ mod verification;
 pub use verification::Verifier;
 
 // Build the Android module when generating docs so that
-// the Android-specific functions are included.
-#[cfg_attr(docsrs, cfg(any(target_os = "android", doc)))]
-#[cfg_attr(not(docsrs), cfg(target_os = "android"))]
+// the Android-specific functions are included regardless of
+// the host.
+#[cfg(any(all(doc, docsrs), target_os = "android"))]
+#[cfg_attr(docsrs, doc(cfg(target_os = "android")))]
 pub mod android;
 
 #[cfg(windows)]
