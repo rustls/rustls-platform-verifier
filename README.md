@@ -23,7 +23,7 @@ This library supports the following platforms and flows:
 | macOS (10.14+) | macOS platform roots and keychain certificate | macOS `Security.framework`           | Yes                |
 | iOS            | iOS platform roots and keychain certificates  | iOS `Security.framework`             | Yes                |
 | Android        | Android System Trust Store                    | Android Trust Manager                | Sometimes[^1]      |
-| Linux          | webpki roots and platform certificate bundles | webpki                               | No[^2]             |
+| Linux          | System CA bundle, or user-provided certs[^3]  | webpki                               | No[^2]             |
 | WASM           | webpki roots                                  | webpki                               | No[^2]             |
 
 [^1]: On Android, revocation checking requires API version >= 24 (e.g. at least Android 7.0, August 2016).
@@ -36,7 +36,14 @@ checking. If you require revocation checking on these platforms, prefer construc
 `WebPkiServerVerifier`, providing necessary CRLs. See the Rustls [`ServerCertVerifierBuilder`] docs for more
 information.
 
+[^3]: On Linux the [rustls-native-certs] and [openssl-probe] crates are used to try and discover the system CA bundle.
+Users may wish to augment these certificates with [webpki-roots] using [`Verifier::new_with_extra_roots`] in case
+a system CA bundle is unavailable.
+
 [`ServerCertVerifierBuilder`]: https://docs.rs/rustls/latest/rustls/client/struct.ServerCertVerifierBuilder.html
+[rustls-native-certs]: https://github.com/rustls/rustls-native-certs
+[openssl-probe]: https://github.com/alexcrichton/openssl-probe
+[webpki-roots]: https://github.com/rustls/webpki-roots
 
 ## Installation and setup
 On most platforms, no setup should be required beyond adding the dependency via `cargo`:
