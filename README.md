@@ -41,6 +41,7 @@ Users may wish to augment these certificates with [webpki-roots] using [`Verifie
 a system CA bundle is unavailable.
 
 [`ServerCertVerifierBuilder`]: https://docs.rs/rustls/latest/rustls/client/struct.ServerCertVerifierBuilder.html
+[`Verifier::new_with_extra_roots`]: https://docs.rs/rustls-platform-verifier/latest/rustls_platform_verifier/struct.Verifier.html#method.new_with_extra_roots
 [rustls-native-certs]: https://github.com/rustls/rustls-native-certs
 [openssl-probe]: https://github.com/alexcrichton/openssl-probe
 [webpki-roots]: https://github.com/rustls/webpki-roots
