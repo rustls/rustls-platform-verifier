@@ -118,6 +118,23 @@ macro_rules! no_error {
 fn real_world_test<E: std::error::Error>(test_case: &TestCase<E>) {
     log::info!("verifying {:?}", test_case.expected_result);
 
+    // On BSD systems openssl-probe fails to find the system CA bundle,
+    // so we must provide extra roots from webpki-roots.
+    #[cfg(target_os = "freebsd")]
+    let verifier = Verifier::new_with_extra_roots(
+        webpki_roots::TLS_SERVER_ROOTS
+            .iter()
+            .map(|ta| {
+                rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
+                    ta.subject,
+                    ta.spki,
+                    ta.name_constraints,
+                )
+            })
+            .collect::<Vec<_>>(),
+    );
+
+    #[cfg(not(target_os = "freebsd"))]
     let verifier = Verifier::new();
 
     let mut chain = test_case

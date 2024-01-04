@@ -1,7 +1,17 @@
-#[cfg(any(target_os = "linux", target_arch = "wasm32"))]
+#[cfg(all(
+    any(unix, target_arch = "wasm32"),
+    not(target_os = "android"),
+    not(target_os = "macos"),
+    not(target_os = "ios")
+))]
 mod others;
 
-#[cfg(any(target_os = "linux", target_arch = "wasm32"))]
+#[cfg(all(
+    any(unix, target_arch = "wasm32"),
+    not(target_os = "android"),
+    not(target_os = "macos"),
+    not(target_os = "ios")
+))]
 pub use others::Verifier;
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
