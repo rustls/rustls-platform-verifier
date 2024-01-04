@@ -36,7 +36,7 @@ checking. If you require revocation checking on these platforms, prefer construc
 `WebPkiServerVerifier`, providing necessary CRLs. See the Rustls [`ServerCertVerifierBuilder`] docs for more
 information.
 
-[ServerCertVerifierBuilder]: https://docs.rs/rustls/latest/rustls/client/struct.ServerCertVerifierBuilder.html
+[`ServerCertVerifierBuilder`]: https://docs.rs/rustls/latest/rustls/client/struct.ServerCertVerifierBuilder.html
 
 ## Installation and setup
 On most platforms, no setup should be required beyond adding the dependency via `cargo`:
