@@ -13,7 +13,11 @@
 //! any parts of the system outside of these tests. See the `#![cfg(...)]`
 //! immediately below to see which platforms run these tests.
 
-#![cfg(all(any(windows, unix, target_os = "android"), not(target_os = "ios")))]
+#![cfg(all(
+    any(windows, unix, target_os = "android"),
+    not(target_os = "ios"),
+    not(target_os = "tvos")
+))]
 
 use super::TestCase;
 use crate::tests::{assert_cert_error_eq, ensure_global_state, verification_time};
