@@ -2,7 +2,8 @@
     any(unix, target_arch = "wasm32"),
     not(target_os = "android"),
     not(target_os = "macos"),
-    not(target_os = "ios")
+    not(target_os = "ios"),
+    not(target_os = "tvos")
 ))]
 mod others;
 
@@ -10,14 +11,15 @@ mod others;
     any(unix, target_arch = "wasm32"),
     not(target_os = "android"),
     not(target_os = "macos"),
-    not(target_os = "ios")
+    not(target_os = "ios"),
+    not(target_os = "tvos")
 ))]
 pub use others::Verifier;
 
-#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "tvos"))]
 mod apple;
 
-#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "tvos"))]
 pub use apple::Verifier;
 
 #[cfg(target_os = "android")]
@@ -61,7 +63,7 @@ fn log_server_cert(_end_entity: &rustls::pki_types::CertificateDer<'_>) {
 
 // Unknown certificate error shorthand. Used when we need to construct an "Other" certificate
 // error with a platform specific error message.
-#[cfg(any(windows, target_os = "macos", target_os = "ios"))]
+#[cfg(any(windows, target_os = "macos", target_os = "ios", target_os = "tvos"))]
 fn invalid_certificate(reason: impl Into<String>) -> rustls::Error {
     rustls::Error::InvalidCertificate(rustls::CertificateError::Other(rustls::OtherError(
         std::sync::Arc::from(Box::from(reason.into())),
