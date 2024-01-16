@@ -46,8 +46,9 @@ pub struct Verifier {
 impl Drop for Verifier {
     fn drop(&mut self) {
         with_context::<_, ()>(|cx| {
+            let cert_verifier_class = CERT_VERIFIER_CLASS.get(cx)?;
             let env = cx.env();
-            env.call_static_method(CERT_VERIFIER_CLASS.get(cx)?, "clearMockRoots", "()V", &[])?
+            env.call_static_method(cert_verifier_class, "clearMockRoots", "()V", &[])?
                 .v()?;
             Ok(())
         })
@@ -96,20 +97,24 @@ impl Verifier {
             .unwrap();
 
         let verification_result = with_context(|cx| {
+            let byte_array_class = BYTE_ARRAY_CLASS.get(cx)?;
+            let string_class = STRING_CLASS.get(cx)?;
+            let cert_verifier_class = CERT_VERIFIER_CLASS.get(cx)?;
+            let app_ctx = cx.application_context();
             let env = cx.env();
             // We don't provide an initial element so that the array filling can be cleaner.
             // It's valid to provide a `null` value. Ref: https://docs.oracle.com/en/java/javase/13/docs/specs/jni/functions.html -> NewObjectArray
             let cert_list = {
                 let array = env.new_object_array(
                     (intermediates.len() + 1).try_into().unwrap(),
-                    BYTE_ARRAY_CLASS.get(cx)?,
+                    byte_array_class,
                     JObject::null(),
                 )?;
 
                 for (idx, cert) in certificate_chain {
                     let idx = idx.try_into().unwrap();
                     let cert_buffer = env.byte_array_from_slice(cert)?;
-                    env.set_object_array_element(array, idx, cert_buffer)?
+                    env.set_object_array_element(&array, idx, cert_buffer)?
                 }
 
                 array
@@ -118,31 +123,31 @@ impl Verifier {
             let allowed_ekus = {
                 let array = env.new_object_array(
                     ALLOWED_EKUS.len().try_into().unwrap(),
-                    STRING_CLASS.get(cx)?,
+                    string_class,
                     JObject::null(),
                 )?;
 
                 for (idx, eku) in ALLOWED_EKUS.iter().enumerate() {
                     let idx = idx.try_into().unwrap();
                     let eku = env.new_string(eku)?;
-                    env.set_object_array_element(array, idx, eku)?;
+                    env.set_object_array_element(&array, idx, eku)?;
                 }
 
                 array
             };
 
-            let ocsp_response = ocsp_response
-                .map(|b| env.byte_array_from_slice(b))
-                .transpose()?
-                .map(JObject::from)
-                .unwrap_or_else(JObject::null);
+            let ocsp_response = if let Some(b) = ocsp_response {
+                JObject::from(env.byte_array_from_slice(b)?)
+            } else {
+                JObject::null()
+            };
 
             #[cfg(any(test, feature = "ffi-testing"))]
             {
                 if let Some(mock_root) = &self.test_only_root_ca_override {
                     let mock_root = env.byte_array_from_slice(mock_root)?;
                     env.call_static_method(
-                        CERT_VERIFIER_CLASS.get(cx)?,
+                        cert_verifier_class,
                         "addMockRoot",
                         "([B)V",
                         &[JValue::from(mock_root)],
@@ -167,22 +172,22 @@ impl Verifier {
 
             let result = env
                 .call_static_method(
-                    CERT_VERIFIER_CLASS.get(cx)?,
+                    cert_verifier_class,
                     "verifyCertificateChain",
                     VERIFIER_CALL,
                     &[
-                        JValue::from(*cx.application_context()),
-                        JValue::from(env.new_string(server_name_str)?),
-                        JValue::from(env.new_string(AUTH_TYPE)?),
-                        JValue::from(JObject::from(allowed_ekus)),
-                        JValue::from(ocsp_response),
+                        JValue::from(app_ctx.as_obj()),
+                        JValue::from(&env.new_string(server_name_str)?),
+                        JValue::from(&env.new_string(AUTH_TYPE)?),
+                        JValue::from(&JObject::from(allowed_ekus)),
+                        JValue::from(&ocsp_response),
                         JValue::Long(now),
-                        JValue::from(JObject::from(cert_list)),
+                        JValue::from(&JObject::from(cert_list)),
                     ],
                 )?
                 .l()?;
 
-            Ok(extract_result_info(env, result))
+            Ok(extract_result_info(env, &result))
         });
 
         match verification_result {
@@ -227,7 +232,7 @@ impl Verifier {
     }
 }
 
-fn extract_result_info(env: &JNIEnv<'_>, result: JObject<'_>) -> (VerifierStatus, Option<String>) {
+fn extract_result_info(env: &mut JNIEnv<'_>, result: &JObject<'_>) -> (VerifierStatus, Option<String>) {
     let status_code = env
         .get_field(result, "code", "I")
         .and_then(|code| code.i())
@@ -248,11 +253,14 @@ fn extract_result_info(env: &JNIEnv<'_>, result: JObject<'_>) -> (VerifierStatus
     let msg = env
         .get_field(result, "message", "Ljava/lang/String;")
         .and_then(|m| m.l())
-        .map(|o| (!o.is_null()).then_some(o))
-        .and_then(|s| s.map(|s| JavaStr::from_env(env, s.into())).transpose())
+        .map(|s| if s.is_null() {
+            None
+        } else {
+            JavaStr::from_env(env, &s.into()).ok().map(String::from)
+        })
         .unwrap();
 
-    (status, msg.map(String::from))
+    (status, msg)
 }
 
 impl ServerCertVerifier for Verifier {
