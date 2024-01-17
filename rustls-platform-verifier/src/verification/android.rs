@@ -150,7 +150,7 @@ impl Verifier {
                         cert_verifier_class,
                         "addMockRoot",
                         "([B)V",
-                        &[JValue::from(mock_root)],
+                        &[JValue::from(&mock_root)],
                     )?
                     .v()
                     .expect("failed to add test root")
