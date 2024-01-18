@@ -232,7 +232,10 @@ impl Verifier {
     }
 }
 
-fn extract_result_info(env: &mut JNIEnv<'_>, result: &JObject<'_>) -> (VerifierStatus, Option<String>) {
+fn extract_result_info(
+    env: &mut JNIEnv<'_>,
+    result: &JObject<'_>,
+) -> (VerifierStatus, Option<String>) {
     let status_code = env
         .get_field(result, "code", "I")
         .and_then(|code| code.i())
@@ -253,10 +256,12 @@ fn extract_result_info(env: &mut JNIEnv<'_>, result: &JObject<'_>) -> (VerifierS
     let msg = env
         .get_field(result, "message", "Ljava/lang/String;")
         .and_then(|m| m.l())
-        .map(|s| if s.is_null() {
-            None
-        } else {
-            JavaStr::from_env(env, &s.into()).ok().map(String::from)
+        .map(|s| {
+            if s.is_null() {
+                None
+            } else {
+                JavaStr::from_env(env, &s.into()).ok().map(String::from)
+            }
         })
         .unwrap();
 
