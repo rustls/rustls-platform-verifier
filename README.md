@@ -13,11 +13,11 @@ This crate is advantageous over `rustls-native-certs` on its own for a few reaso
 - Improved correctness and security, as the OSes [CA constraints](https://support.apple.com/en-us/HT212865) will be taken into account.
 - Better integration with OS certificate stores and enterprise CA deployments.
 - Revocation support via verifying validity via OCSP and CRLs.
-- Less I/O and memory overhead because all the platform CAs don't need to be loaded and parsed. 
+- Less I/O and memory overhead because all the platform CAs don't need to be loaded and parsed.
 
 This library supports the following platforms and flows:
 
-| OS             | Certificate Store                             | Verification Method                  | Revocation Support | 
+| OS             | Certificate Store                             | Verification Method                  | Revocation Support |
 |----------------|-----------------------------------------------|--------------------------------------|--------------------|
 | Windows        | Windows platform certificate store            | Windows API certificate verification | Yes                |
 | macOS (10.14+) | macOS platform roots and keychain certificate | macOS `Security.framework`           | Yes                |
@@ -28,11 +28,11 @@ This library supports the following platforms and flows:
 
 [^1]: On Android, revocation checking requires API version >= 24 (e.g. at least Android 7.0, August 2016).
 When available, revocation checking is only performed for the end-entity certificate. If a stapled OCSP
-response for the end-entity cert isn't provided, and the certificate omits both a OCSP responder URL and 
+response for the end-entity cert isn't provided, and the certificate omits both a OCSP responder URL and
 CRL distribution point to fetch revocation information from, revocation checking may fail.
 
 [^2]: The fall-back webpki verifier configured for Linux/WASM does not support providing CRLs for revocation
-checking. If you require revocation checking on these platforms, prefer constructing your own 
+checking. If you require revocation checking on these platforms, prefer constructing your own
 `WebPkiServerVerifier`, providing necessary CRLs. See the Rustls [`ServerCertVerifierBuilder`] docs for more
 information.
 
@@ -66,7 +66,7 @@ is 100% applicable to Kotlin script (`.gradle.kts`) configurations too with a fe
 Inside of your project's `build.gradle` file, add the following code and Maven repository definition. If applicable, this should only be the one "app" sub-project that
 will actually be using this crate at runtime. With multiple projects running this, your Gradle configuration performance may degrade.
 
-`$PATH_TO_DEPENDENT_CRATE` is the relative path to the Cargo manifest (`Cargo.toml`) of any crate in your workspace that depends on `rustls-platform-verifier` from 
+`$PATH_TO_DEPENDENT_CRATE` is the relative path to the Cargo manifest (`Cargo.toml`) of any crate in your workspace that depends on `rustls-platform-verifier` from
 the location of your `build.gradle` file:
 
 ```groovy
@@ -107,7 +107,7 @@ implementation part can be located on-disk.
 
 #### Proguard
 
-If your Android application makes use of Proguard for optimizations, its important to make sure that the Android verifier component isn't optimized 
+If your Android application makes use of Proguard for optimizations, its important to make sure that the Android verifier component isn't optimized
 out because it looks like dead code. Proguard is unable to see any JNI usage, so your rules must manually opt into keeping it. The following rule
 can do this for you:
 ```text
@@ -120,7 +120,7 @@ In order for the crate to call into the JVM, it needs handles from Android. Thes
 are provided either the `init_external` or `init_hosted` function. These give `rustls-platform-verifier`
 the resources it needs to make calls into the Android certificate verifier.
 
-As an example, if your Rust Android component which the "native" Android 
+As an example, if your Rust Android component which the "native" Android
 part of your app calls at startup has an initialization, like this:
 ```rust ,ignore
 #[export_name = "Java_com_orgname_android_rust_init"]
@@ -133,7 +133,7 @@ extern "C" fn java_init(
 }
 ```
 
-In the simplest case, you should to insert a call to `rustls_platform_verifier::android::init_hosted()` here, 
+In the simplest case, you should to insert a call to `rustls_platform_verifier::android::init_hosted()` here,
 before any networking has a chance to run. This only needs to be called once and
 the verifier will be valid for the lifetime of your app's process.
 
@@ -150,7 +150,7 @@ extern "C" fn java_init(
 }
 ```
 
-In more advanced cases, such as where your code already stores long-lived handles into 
+In more advanced cases, such as where your code already stores long-lived handles into
 the Android environment, you can alternatively use `init_external`. This function takes
 a `&'static` reference to something that implements the `android::Runtime` trait, which the
 crate then uses to obtain the access when required to the JVM.
