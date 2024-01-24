@@ -52,6 +52,25 @@ On most platforms, no setup should be required beyond adding the dependency via 
 rustls-platform-verifier = "0.1"
 ```
 
+To get a rustls `ClientConfig` configured to use the platform verifier use:
+
+```rust
+let config = rustls_platform_verifier::tls_config();
+```
+
+If you want to adapt the configuration, you can build the `ClientConfig` like this:
+
+```rust
+use std::sync::Arc;
+use rustls::ClientConfig;
+use rustls_platform_verifier::Verifier;
+
+let mut config = ClientConfig::builder()
+    .dangerous() // The `Verifier` we're using is actually safe
+    .with_custom_certificate_verifier(Arc::new(Verifier::new()))
+    .with_no_client_auth();
+```
+
 ### Android
 Some manual setup is required, outside of `cargo`, to use this crate on Android. In order to
 use Android's certificate verifier, the crate needs to call into the JVM. A small Kotlin
