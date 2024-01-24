@@ -307,7 +307,7 @@ checksum = "9e9d979b3ce68192e42760c7810125eb6cf2ea10efae545a156063e61f314e2a"
 
 [[package]]
 name = "rustls-platform-verifier"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "android_logger",
  "base64",
