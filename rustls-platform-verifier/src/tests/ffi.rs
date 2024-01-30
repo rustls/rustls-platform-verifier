@@ -29,7 +29,7 @@ mod android {
     const SUCCESS_MARKER: &str = "success";
 
     fn run_android_test<'a>(
-        env: &'a JNIEnv,
+        env: &'a mut JNIEnv,
         cx: JObject,
         suite_name: &'static str,
         test_cases: &'static [fn()],
@@ -46,7 +46,7 @@ mod android {
                     .with_max_level(log::Level::Trace.to_level_filter())
                     .with_filter(log_filter),
             );
-            crate::android::init_hosted(env, cx).unwrap();
+            crate::android::init_hosted(env, &cx).unwrap();
             std::panic::set_hook(Box::new(|info| {
                 let msg = if let Some(msg) = info.payload().downcast_ref::<&'static str>() {
                     msg
@@ -85,53 +85,53 @@ mod android {
 
     #[export_name = "Java_org_rustls_platformverifier_CertificateVerifierTests_mockTests"]
     pub extern "C" fn rustls_platform_verifier_mock_test_suite(
-        env: JNIEnv,
+        mut env: JNIEnv,
         _class: JClass,
         cx: JObject,
     ) -> jstring {
         log::info!("running mock test suite...");
 
         run_android_test(
-            &env,
+            &mut env,
             cx,
             "mock tests",
             tests::verification_mock::ALL_TEST_CASES,
         )
-        .into_inner()
+        .into_raw()
     }
 
     #[export_name = "Java_org_rustls_platformverifier_CertificateVerifierTests_verifyMockRootUsage"]
     pub extern "C" fn rustls_platform_verifier_verify_mock_root_usage(
-        env: JNIEnv,
+        mut env: JNIEnv,
         _class: JClass,
         cx: JObject,
     ) -> jstring {
         log::info!("verifying mock roots are not used by default...");
 
         run_android_test(
-            &env,
+            &mut env,
             cx,
             "mock root verification",
             &[tests::verification_mock::verification_without_mock_root],
         )
-        .into_inner()
+        .into_raw()
     }
 
     #[export_name = "Java_org_rustls_platformverifier_CertificateVerifierTests_realWorldTests"]
     pub extern "C" fn rustls_platform_verifier_real_world_test_suite(
-        env: JNIEnv,
+        mut env: JNIEnv,
         _class: JClass,
         cx: JObject,
     ) -> jstring {
         log::info!("running real world suite...");
 
         run_android_test(
-            &env,
+            &mut env,
             cx,
             "real world",
             tests::verification_real_world::ALL_TEST_CASES,
         )
-        .into_inner()
+        .into_raw()
     }
 }
 
