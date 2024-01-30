@@ -167,6 +167,7 @@ impl<'a> Context<'a> {
 pub(super) fn with_context<F, T>(f: F) -> Result<T, Error>
 where
     F: FnOnce(&mut Context) -> Result<T, Error>,
+    T: 'static,
 {
     let mut context = global().context()?;
 
@@ -175,6 +176,7 @@ where
 
     let res = f(&mut context);
 
+    // Safety: no local references remained, minicking `jni::JNIEnv::with_local_frame`
     unsafe { context.env.pop_local_frame(&JObject::null()) }?;
 
     res
