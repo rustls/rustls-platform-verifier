@@ -118,7 +118,11 @@ macro_rules! no_error {
 }
 
 fn real_world_test<E: std::error::Error>(test_case: &TestCase<E>) {
-    log::info!("verifying {:?}", test_case.expected_result);
+    log::info!(
+        "verifying ref ID {:?} expected {:?}",
+        test_case.reference_id,
+        test_case.expected_result
+    );
 
     // On BSD systems openssl-probe fails to find the system CA bundle,
     // so we must provide extra roots from webpki-roots.
