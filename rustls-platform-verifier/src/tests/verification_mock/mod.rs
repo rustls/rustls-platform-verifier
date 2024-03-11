@@ -16,7 +16,7 @@
 #![cfg(all(any(windows, unix, target_os = "android"), not(target_os = "ios")))]
 
 use super::TestCase;
-use crate::tests::{assert_cert_error_eq, verification_time};
+use crate::tests::{assert_cert_error_eq, ensure_global_state, verification_time};
 use crate::verification::{EkuError, Verifier};
 use rustls::client::danger::ServerCertVerifier;
 use rustls::pki_types;
@@ -79,6 +79,7 @@ const LOCALHOST_IPV6: &str = "::1";
 #[cfg(any(test, feature = "ffi-testing"))]
 #[cfg_attr(feature = "ffi-testing", allow(dead_code))]
 pub(super) fn verification_without_mock_root() {
+    ensure_global_state();
     // Since Rustls 0.22 constructing a webpki verifier (like the one backing Verifier on unix
     // systems) without any roots produces `OtherError(NoRootAnchors)` - since our FreeBSD CI
     // runner fails to find any roots with openssl-probe we need to provide webpki-roots here
@@ -283,6 +284,7 @@ mock_root_test_cases! {
 }
 
 fn test_with_mock_root<E: std::error::Error + PartialEq + 'static>(test_case: &TestCase<E>) {
+    ensure_global_state();
     log::info!("verifying {:?}", test_case.expected_result);
 
     let verifier = Verifier::new_with_fake_root(ROOT1); // TODO: time

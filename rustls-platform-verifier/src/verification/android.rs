@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use jni::{
     objects::{JObject, JValue},
     strings::JavaStr,
@@ -44,7 +46,7 @@ pub struct Verifier {
     /// Testing only: The root CA certificate to trust.
     #[cfg(any(test, feature = "ffi-testing"))]
     test_only_root_ca_override: Option<Vec<u8>>,
-    default_provider: CryptoProvider,
+    default_provider: Arc<CryptoProvider>,
 }
 
 impl Default for Verifier {
@@ -73,7 +75,9 @@ impl Verifier {
         Self {
             #[cfg(any(test, feature = "ffi-testing"))]
             test_only_root_ca_override: None,
-            default_provider: rustls::crypto::ring::default_provider(),
+            default_provider: rustls::crypto::CryptoProvider::get_default()
+                .expect("rustls default CryptoProvider not set")
+                .clone(),
         }
     }
 
@@ -82,7 +86,9 @@ impl Verifier {
     pub(crate) fn new_with_fake_root(root: &[u8]) -> Self {
         Self {
             test_only_root_ca_override: Some(root.into()),
-            default_provider: rustls::crypto::ring::default_provider(),
+            default_provider: rustls::crypto::CryptoProvider::get_default()
+                .expect("rustls default CryptoProvider not set")
+                .clone(),
         }
     }
 

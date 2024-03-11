@@ -47,6 +47,7 @@ mod android {
                     .with_filter(log_filter),
             );
             crate::android::init_hosted(env, cx).unwrap();
+            crate::tests::ensure_global_state();
             std::panic::set_hook(Box::new(|info| {
                 let msg = if let Some(msg) = info.payload().downcast_ref::<&'static str>() {
                     msg

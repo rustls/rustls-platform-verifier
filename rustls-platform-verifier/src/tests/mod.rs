@@ -61,3 +61,7 @@ pub(crate) fn verification_time() -> pki_types::UnixTime {
     // Monday, March 11, 2024 8:30:25 PM UTC
     pki_types::UnixTime::since_unix_epoch(Duration::from_secs(1_710_189_025))
 }
+
+fn ensure_global_state() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
