@@ -19,7 +19,7 @@ crate-type = ["cdylib", "rlib"]
 # Enables a C interface to use for testing where `cargo` can't be used.
 # This feature is not stable, nor is the interface exported when it is enabled.
 # Do not rely on this or use it in production.
-ffi-testing = ["android_logger"]
+ffi-testing = ["android_logger", "rustls/ring"]
 # Enables APIs that expose lower-level verifier types for debugging purposes.
 dbg = []
 # Enables `log::debug` base64-encoded logging of all end-entity certificates processed
@@ -29,7 +29,7 @@ cert-logging = ["base64"]
 docsrs = ["jni", "once_cell"]
 
 [dependencies]
-rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
+rustls = { version = "0.23", default-features = false, features = ["std"] }
 log = { version = "0.4" }
 base64 = { version = "0.21", optional = true } # Only used when the `cert-logging` feature is enabled.
 jni = { version = "0.19", default-features = false, optional = true } # Only used during doc generation
@@ -63,6 +63,9 @@ security-framework-sys = { version = "2.4", features = ["OSX_10_14"] }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["wincrypt", "winerror"] }
+
+[dev-dependencies]
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]

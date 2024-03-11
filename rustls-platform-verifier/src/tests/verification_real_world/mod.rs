@@ -35,7 +35,7 @@
 //! Thus we don't expect these tests to be flaky w.r.t. that, except for
 //! potentially poor performance.     
 use super::TestCase;
-use crate::tests::{assert_cert_error_eq, verification_time};
+use crate::tests::{assert_cert_error_eq, ensure_global_state, verification_time};
 use crate::Verifier;
 use rustls::client::danger::ServerCertVerifier;
 use rustls::pki_types;
@@ -118,6 +118,7 @@ macro_rules! no_error {
 }
 
 fn real_world_test<E: std::error::Error>(test_case: &TestCase<E>) {
+    ensure_global_state();
     log::info!(
         "verifying ref ID {:?} expected {:?}",
         test_case.reference_id,
