@@ -160,7 +160,8 @@ jobs:
             env | grep '^JAVA'
             touch emulator.log
             chmod 770 emulator.log
-            adb logcat >> emulator.log &
+            adb logcat --clear
+            adb logcat | grep 'rustls' | tee emulator.log &
             ./gradlew connectedDebugAndroidTest
 
       - name: Upload Android test results
@@ -171,7 +172,7 @@ jobs:
           name: android-test-results
           retention-days: 7
           path: |
-            emulator.log
+            ./android/emulator.log
             /Users/runner/work/rustls-platform-verifier/rustls-platform-verifier/android/rustls-platform-verifier/build/outputs/androidTest-results/connected/test-result.pb
 
   # TODO: Test iOS in CI too.
