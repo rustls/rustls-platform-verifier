@@ -22,6 +22,7 @@ use super::{log_server_cert, ALLOWED_EKUS};
 use crate::windows::{
     c_void_from_ref, c_void_from_ref_mut, nonnull_from_const_ptr, ZeroedWithSize,
 };
+use once_cell::sync::OnceCell;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerifier};
 use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, CryptoProvider};
 use rustls::pki_types;
@@ -420,19 +421,18 @@ pub struct Verifier {
     /// Testing only: The root CA certificate to trust.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
     test_only_root_ca_override: Option<Vec<u8>>,
-    default_provider: Arc<CryptoProvider>,
+    default_provider: OnceCell<Arc<CryptoProvider>>,
 }
 
 impl Verifier {
     /// Creates a new instance of a TLS certificate verifier that utilizes the
-    /// Windows certificate facilities.
+    /// Windows certificate facilities. The rustls default [`CryptoProvider`]
+    /// must be set before the verifier can be used.
     pub fn new() -> Self {
         Self {
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
-            default_provider: rustls::crypto::CryptoProvider::get_default()
-                .expect("rustls default CryptoProvider not set")
-                .clone(),
+            default_provider: OnceCell::new(),
         }
     }
 
@@ -441,10 +441,18 @@ impl Verifier {
     pub(crate) fn new_with_fake_root(root: &[u8]) -> Self {
         Self {
             test_only_root_ca_override: Some(root.into()),
-            default_provider: rustls::crypto::CryptoProvider::get_default()
-                .expect("rustls default CryptoProvider not set")
-                .clone(),
+            default_provider: OnceCell::new(),
         }
+    }
+
+    fn get_provider(&self) -> &CryptoProvider {
+        self.default_provider
+            .get_or_init(|| {
+                rustls::crypto::CryptoProvider::get_default()
+                    .expect("rustls default CryptoProvider not set")
+                    .clone()
+            })
+            .as_ref()
     }
 
     /// Verifies a certificate and its chain for the specified `server`.
@@ -579,7 +587,7 @@ impl ServerCertVerifier for Verifier {
             message,
             cert,
             dss,
-            &self.default_provider.signature_verification_algorithms,
+            &self.get_provider().signature_verification_algorithms,
         )
     }
 
@@ -593,12 +601,12 @@ impl ServerCertVerifier for Verifier {
             message,
             cert,
             dss,
-            &self.default_provider.signature_verification_algorithms,
+            &self.get_provider().signature_verification_algorithms,
         )
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        self.default_provider
+        self.get_provider()
             .signature_verification_algorithms
             .supported_schemes()
     }
