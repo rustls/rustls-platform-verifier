@@ -253,6 +253,30 @@ internal object CertificateVerifier {
         val validChain = try {
             trustManager.checkServerTrusted(certificateChain.toTypedArray(), authMethod, serverName)
         } catch (e: CertificateException) {
+            // In test configurations we may see `checkServerTrusted` fail once vendored test
+            // certificates pass their expiry date. We try to avoid that by using a fixed
+            // verification time when calling `endEntity.checkValidity` above, however we can't
+            // fix the time for the `checkServerTrusted` call.
+            //
+            // To make diagnosing CI test failures easier we try to find the root cause of
+            // checkServerTrusted failing, returning a different `StatusCode` as appropriate.
+            if (BuildConfig.TEST) {
+                var rootCause: Throwable? = e
+                while (rootCause?.cause != null && rootCause.cause != rootCause) {
+                    rootCause = rootCause.cause
+                }
+                return when (rootCause) {
+                    is CertificateExpiredException, is CertificateNotYetValidException -> VerificationResult(
+                        StatusCode.Expired,
+                        rootCause.toString()
+                    )
+
+                    else -> VerificationResult(StatusCode.UnknownCert, rootCause.toString())
+                }
+            }
+            // In non-test configurations we should have caught expiry errors earlier and
+            // can simply return an unknown cert error without digging through the exception
+            // cause chain.
             return VerificationResult(StatusCode.UnknownCert, e.toString())
         }
 
