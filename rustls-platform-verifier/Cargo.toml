@@ -1,6 +1,6 @@
 [package]
 name = "rustls-platform-verifier"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["ComplexSpaces <complexspacescode@gmail.com>", "1Password"]
 description = "rustls-platform-verifier supports verifying TLS certificates in rustls with the operating system verifier"
 keywords = ["tls", "certificate", "verification", "os", "native"]
