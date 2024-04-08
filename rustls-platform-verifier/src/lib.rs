@@ -54,7 +54,7 @@ pub use tests::ffi::*;
 ///
 /// If you require more control over the rustls `ClientConfig`, you can
 /// instantiate a [Verifier] with [Verifier::default] and then use it
-/// with [rustls::ConfigBuilder::dangerous::with_custom_certificate_verifier].
+/// with [`DangerousClientConfigBuilder::with_custom_certificate_verifier`][rustls::client::danger::DangerousClientConfigBuilder::with_custom_certificate_verifier].
 ///
 /// Refer to the crate level documentation to see what platforms
 /// are currently supported.
