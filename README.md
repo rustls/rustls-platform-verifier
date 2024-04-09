@@ -58,6 +58,13 @@ To get a rustls `ClientConfig` configured to use the platform verifier use:
 let config = rustls_platform_verifier::tls_config();
 ```
 
+This crate will use the [rustls process-default crypto provider](https://docs.rs/rustls/latest/rustls/crypto/struct.CryptoProvider.html#using-the-per-process-default-cryptoprovider). To construct a `ClientConfig` with a different `CryptoProvider`, use:
+
+```rust
+let arc_crypto_provider = std::sync::Arc::new(rustls::crypto::ring::default_provider());
+let config = rustls_platform_verifier::tls_config_with_provider(arc_crypto_provider);
+```
+
 If you want to adapt the configuration, you can build the `ClientConfig` like this:
 
 ```rust

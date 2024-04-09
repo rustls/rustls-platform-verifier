@@ -65,6 +65,25 @@ pub fn tls_config() -> ClientConfig {
         .with_no_client_auth()
 }
 
+/// Attempts to construct a `rustls` configuration that verifies TLS certificates in the best way
+/// for the underlying OS platform, using the provided
+/// [`CryptoProvider`][rustls::crypto::CryptoProvider].
+///
+/// See [`tls_config`] for further documentation.
+///
+/// # Errors
+///
+/// Propagates any error returned by [`rustls::ConfigBuilder::with_safe_default_protocol_versions`].
+pub fn tls_config_with_provider(
+    provider: Arc<rustls::crypto::CryptoProvider>,
+) -> Result<ClientConfig, rustls::Error> {
+    Ok(ClientConfig::builder_with_provider(provider.clone())
+        .with_safe_default_protocol_versions()?
+        .dangerous()
+        .with_custom_certificate_verifier(Arc::new(Verifier::new().with_provider(provider)))
+        .with_no_client_auth())
+}
+
 /// Exposed for debugging certificate issues with standalone tools.
 ///
 /// This is not intended for production use, you should use [tls_config] instead.
