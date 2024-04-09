@@ -158,7 +158,7 @@ jobs:
             ./gradlew connectedDebugAndroidTest
 
       - name: Upload Android test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         # Upload test results if they fail
         if: failure()
         with:
