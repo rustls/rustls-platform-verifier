@@ -31,9 +31,9 @@ docsrs = ["jni"]
 [dependencies]
 rustls = { version = "0.23", default-features = false, features = ["std"] }
 log = { version = "0.4" }
-base64 = { version = "0.21", optional = true } # Only used when the `cert-logging` feature is enabled.
-jni = { version = "0.19", default-features = false, optional = true } # Only used during doc generation
-once_cell = "1.9"
+base64 = { version = "0.22", optional = true } # Only used when the `cert-logging` feature is enabled.
+jni = { version = "0.21", default-features = false, optional = true } # Only used during doc generation
+once_cell = "1.19"
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_os = "macos"), not(target_os = "ios")))'.dependencies]
 rustls-native-certs = "0.7"
@@ -55,7 +55,7 @@ webpki-roots = "0.26"
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 core-foundation = "0.9"
 core-foundation-sys = "0.8"
-security-framework = { version = "2.6", features = ["OSX_10_14"] }
+security-framework = { version = "2.10", features = ["OSX_10_14"] }
 security-framework-sys = { version = "2.4", features = ["OSX_10_14"] }
 
 [target.'cfg(windows)'.dependencies]
