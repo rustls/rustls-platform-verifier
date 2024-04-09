@@ -16,8 +16,25 @@ env:
   RUSTFLAGS: -D warnings -F unused_must_use
 
 jobs:
+  clippy-build-std:
+    name: Clippy (-Zbuild-std)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy
+
+      - name: Clippy (tvOS)
+        run: |
+          rustup component add rust-src --toolchain nightly-x86_64-apple-darwin
+          cargo +nightly clippy -Zbuild-std --target aarch64-apple-tvos
+
   clippy:
-    name: Clippy
+    name: Clippy (stable)
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
