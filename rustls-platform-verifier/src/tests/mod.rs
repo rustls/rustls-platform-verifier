@@ -52,7 +52,7 @@ pub fn assert_cert_error_eq<E: StdError + PartialEq + 'static>(
     }
 }
 
-/// Return a fixed [SystemTime] for certificate validation purposes.
+/// Return a fixed [`pki_types::UnixTime`] for certificate validation purposes.
 ///
 /// We fix the "now" value used for certificate validation to a fixed point in time at which
 /// we know the test certificates are valid. This must be updated if the mock certificates
