@@ -46,18 +46,21 @@ pub struct Verifier {
     /// Testing only: The root CA certificate to trust.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
     test_only_root_ca_override: Option<Vec<u8>>,
-    default_provider: OnceCell<Arc<CryptoProvider>>,
+    pub(super) crypto_provider: OnceCell<Arc<CryptoProvider>>,
 }
 
 impl Verifier {
-    /// Creates a new instance of a TLS certificate verifier that utilizes the
-    /// macOS certificate facilities. The rustls default [`CryptoProvider`]
-    /// must be set before the verifier can be used.
+    /// Creates a new instance of a TLS certificate verifier that utilizes the macOS certificate
+    /// facilities.
+    ///
+    /// A [`CryptoProvider`] must be set with
+    /// [`set_provider`][Verifier::set_provider]/[`with_provider`][Verifier::with_provider] or
+    /// [`CryptoProvider::install_default`] before the verifier can be used.
     pub fn new() -> Self {
         Self {
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
-            default_provider: OnceCell::new(),
+            crypto_provider: OnceCell::new(),
         }
     }
 
@@ -66,18 +69,8 @@ impl Verifier {
     pub(crate) fn new_with_fake_root(root: &[u8]) -> Self {
         Self {
             test_only_root_ca_override: Some(root.into()),
-            default_provider: OnceCell::new(),
+            crypto_provider: OnceCell::new(),
         }
-    }
-
-    fn get_provider(&self) -> &CryptoProvider {
-        self.default_provider
-            .get_or_init(|| {
-                rustls::crypto::CryptoProvider::get_default()
-                    .expect("rustls default CryptoProvider not set")
-                    .clone()
-            })
-            .as_ref()
     }
 
     fn verify_certificate(

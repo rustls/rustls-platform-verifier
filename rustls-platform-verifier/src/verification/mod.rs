@@ -1,3 +1,6 @@
+use rustls::crypto::CryptoProvider;
+use std::sync::Arc;
+
 #[cfg(all(
     any(unix, target_arch = "wasm32"),
     not(target_os = "android"),
@@ -64,7 +67,7 @@ fn log_server_cert(_end_entity: &rustls::pki_types::CertificateDer<'_>) {
 #[cfg(any(windows, target_os = "macos", target_os = "ios"))]
 fn invalid_certificate(reason: impl Into<String>) -> rustls::Error {
     rustls::Error::InvalidCertificate(rustls::CertificateError::Other(rustls::OtherError(
-        std::sync::Arc::from(Box::from(reason.into())),
+        Arc::from(Box::from(reason.into())),
     )))
 }
 
@@ -77,3 +80,30 @@ fn invalid_certificate(reason: impl Into<String>) -> rustls::Error {
 /// - id-kp-serverAuth
 // TODO: Chromium also allows for `OID_ANY_EKU` on Android.
 pub const ALLOWED_EKUS: &[&str] = &["1.3.6.1.5.5.7.3.1"];
+
+impl Verifier {
+    /// Chainable setter to configure the [`CryptoProvider`] for this `Verifier`.
+    ///
+    /// This will be used instead of the rustls processs-default `CryptoProvider`, even if one has
+    /// been installed.
+    pub fn with_provider(mut self, crypto_provider: Arc<CryptoProvider>) -> Self {
+        self.set_provider(crypto_provider);
+        self
+    }
+
+    /// Configures the [`CryptoProvider`] for this `Verifier`.
+    ///
+    /// This will be used instead of the rustls processs-default `CryptoProvider`, even if one has
+    /// been installed.
+    pub fn set_provider(&mut self, crypto_provider: Arc<CryptoProvider>) {
+        self.crypto_provider = crypto_provider.into();
+    }
+
+    fn get_provider(&self) -> &Arc<CryptoProvider> {
+        self.crypto_provider.get_or_init(|| {
+            CryptoProvider::get_default()
+                .expect("rustls default CryptoProvider not set")
+                .clone()
+        })
+    }
+}

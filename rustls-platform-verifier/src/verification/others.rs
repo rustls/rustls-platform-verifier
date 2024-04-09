@@ -4,7 +4,8 @@ use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, Server
 use rustls::client::WebPkiServerVerifier;
 use rustls::pki_types;
 use rustls::{
-    CertificateError, DigitallySignedStruct, Error as TlsError, OtherError, SignatureScheme,
+    crypto::CryptoProvider, CertificateError, DigitallySignedStruct, Error as TlsError, OtherError,
+    SignatureScheme,
 };
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
@@ -28,17 +29,24 @@ pub struct Verifier {
     /// Testing only: an additional root CA certificate to trust.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
     test_only_root_ca_override: Option<Vec<u8>>,
+
+    pub(super) crypto_provider: OnceCell<Arc<CryptoProvider>>,
 }
 
 impl Verifier {
     /// Creates a new verifier whose certificate validation is provided by
     /// WebPKI, using root certificates provided by the platform.
+    ///
+    /// A [`CryptoProvider`] must be set with
+    /// [`set_provider`][Verifier::set_provider]/[`with_provider`][Verifier::with_provider] or
+    /// [`CryptoProvider::install_default`] before the verifier can be used.
     pub fn new() -> Self {
         Self {
             inner: OnceCell::new(),
             extra_roots: Vec::new().into(),
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
+            crypto_provider: OnceCell::new(),
         }
     }
 
@@ -53,6 +61,7 @@ impl Verifier {
             extra_roots: roots.into_iter().collect::<Vec<_>>().into(),
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
+            crypto_provider: OnceCell::new(),
         }
     }
 
@@ -63,6 +72,7 @@ impl Verifier {
             inner: OnceCell::new(),
             extra_roots: Vec::new().into(),
             test_only_root_ca_override: Some(root.into()),
+            crypto_provider: OnceCell::new(),
         }
     }
 
@@ -85,9 +95,12 @@ impl Verifier {
                 if (added != 1) || (ignored != 0) {
                     panic!("Failed to insert fake, test-only root trust anchor");
                 }
-                return Ok(WebPkiServerVerifier::builder(root_store.into())
-                    .build()
-                    .unwrap());
+                return Ok(WebPkiServerVerifier::builder_with_provider(
+                    root_store.into(),
+                    Arc::clone(self.get_provider()),
+                )
+                .build()
+                .unwrap());
             }
         }
 
@@ -143,9 +156,12 @@ impl Verifier {
             }));
         };
 
-        WebPkiServerVerifier::builder(root_store.into())
-            .build()
-            .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))
+        WebPkiServerVerifier::builder_with_provider(
+            root_store.into(),
+            Arc::clone(self.get_provider()),
+        )
+        .build()
+        .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))
     }
 }
 
