@@ -31,9 +31,9 @@ docsrs = ["jni"]
 [dependencies]
 rustls = { version = "0.23", default-features = false, features = ["std"] }
 log = { version = "0.4" }
-base64 = { version = "0.21", optional = true } # Only used when the `cert-logging` feature is enabled.
+base64 = { version = "0.22", optional = true } # Only used when the `cert-logging` feature is enabled.
 jni = { version = "0.19", default-features = false, optional = true } # Only used during doc generation
-once_cell = "1.9"
+once_cell = "1.19"
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_os = "macos"), not(target_os = "ios"), not(target_os = "tvos")))'.dependencies]
 rustls-native-certs = "0.7"
@@ -43,7 +43,7 @@ webpki = { package = "rustls-webpki", version = "0.102", features = ["ring", "al
 rustls-platform-verifier-android = { path = "../android-release-support", version = "0.1.0" }
 jni = { version = "0.19", default-features = false }
 webpki = { package = "rustls-webpki", version = "0.102", features = ["ring", "alloc", "std"] }
-android_logger = { version = "0.13", optional = true } # Only used during testing.
+android_logger = { version = "0.14", optional = true } # Only used during testing.
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 webpki-roots = "0.26"
@@ -55,7 +55,7 @@ webpki-roots = "0.26"
 [target.'cfg(any(target_os = "macos", target_os = "ios", target_os = "tvos"))'.dependencies]
 core-foundation = "0.9"
 core-foundation-sys = "0.8"
-security-framework = { version = "2.10", features = ["OSX_10_14"] }
+security-framework = { version = "2.11", features = ["OSX_10_14"] }
 security-framework-sys = { version = "2.10", features = ["OSX_10_14"] }
 
 [target.'cfg(windows)'.dependencies]
