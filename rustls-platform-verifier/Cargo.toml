@@ -37,12 +37,12 @@ once_cell = "1.9"
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_os = "macos"), not(target_os = "ios"), not(target_os = "tvos")))'.dependencies]
 rustls-native-certs = "0.7"
-webpki = { package = "rustls-webpki", version = "0.102", features = ["ring", "alloc", "std"] }
+webpki = { package = "rustls-webpki", version = "0.102", default-features = false }
 
 [target.'cfg(target_os = "android")'.dependencies]
 rustls-platform-verifier-android = { path = "../android-release-support", version = "0.1.0" }
 jni = { version = "0.19", default-features = false }
-webpki = { package = "rustls-webpki", version = "0.102", features = ["ring", "alloc", "std"] }
+webpki = { package = "rustls-webpki", version = "0.102", default-features = false }
 android_logger = { version = "0.13", optional = true } # Only used during testing.
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
