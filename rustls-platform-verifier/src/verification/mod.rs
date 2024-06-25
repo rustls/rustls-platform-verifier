@@ -35,6 +35,7 @@ pub use windows::Verifier;
 /// An EKU was invalid for the use case of verifying a server certificate.
 ///
 /// This error is used primarily for tests.
+#[cfg_attr(windows, allow(dead_code))] // not used by windows verifier
 #[derive(Debug, PartialEq)]
 pub(crate) struct EkuError;
 
