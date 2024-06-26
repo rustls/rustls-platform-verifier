@@ -115,7 +115,14 @@ impl Verifier {
             );
         }
 
-        #[cfg(all(target_os = "linux", not(target_arch = "wasm32")))]
+        #[cfg(all(
+            unix,
+            not(target_os = "android"),
+            not(target_os = "macos"),
+            not(target_os = "ios"),
+            not(target_os = "tvos"),
+            not(target_arch = "wasm32"),
+        ))]
         match rustls_native_certs::load_native_certs() {
             Ok(certs) => {
                 let (added, ignored) = root_store.add_parsable_certificates(certs);
