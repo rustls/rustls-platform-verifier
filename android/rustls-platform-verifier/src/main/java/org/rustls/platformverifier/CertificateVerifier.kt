@@ -308,6 +308,21 @@ internal object CertificateVerifier {
             // If there is no stapled OCSP response, Android may use the network to attempt to fetch
             // one. If OCSP checking fails, it may fall back to fetching CRLs. We allow "soft"
             // failures, for example transient network errors.
+            //
+            // In the case of a non-public root, such as an internal CA or self-signed certificate,
+            // we opt to skip revocation checks entirely. The only exception is if the server
+            // provided stapled OCSP data, which is an explicit signal and won't introduce non-ideal
+            // platform behavior when attempting validation.
+            //
+            // This is because these are cases where a user or administrator has explicitly opted to
+            // trust a certificate they (at least believe) have control over. These certificates rarely
+            // contain revocation information as well, so these cases don't lose much.
+            // See https://github.com/rustls/rustls-platform-verifier/issues/69 as well.
+            if (ocspResponse == null && !isKnownRoot(validChain.last())) {
+                // Chain validation must have succeeded by this point.
+                return VerificationResult(StatusCode.Ok)
+            }
+
             val parameters = PKIXBuilderParameters(keystore, null)
 
             val validator = CertPathValidator.getInstance("PKIX")
@@ -385,5 +400,62 @@ internal object CertificateVerifier {
         }
 
         return String(hexChars)
+    }
+
+    // Check if CA root is known or not.
+    // Known means installed in root CA store, either a preset public CA or a custom one installed by an enterprise/user.
+    //
+    // Ref: https://source.chromium.org/chromium/chromium/src/+/main:net/android/java/src/org/chromium/net/X509Util.java;l=351
+    fun isKnownRoot(root: X509Certificate): Boolean {
+        // System keystore and cert directory must be non-null to perform checking
+        systemKeystore?.let { loadedSystemKeystore ->
+            systemCertificateDirectory?.let { loadedSystemCertificateDirectory ->
+
+                // Check the in-memory cache first
+                val key = Pair(root.subjectX500Principal, root.publicKey)
+                if (systemTrustAnchorCache.contains(key)) {
+                    return true
+                }
+
+                // System trust anchors are stored under a hash of the principal.
+                // In case of collisions, append number.
+                val hash = hashPrincipal(root.subjectX500Principal)
+                var i = 0
+                while (true) {
+                    val alias = "$hash.$i"
+
+                    if (!File(loadedSystemCertificateDirectory, alias).exists()) {
+                        break
+                    }
+
+                    val anchor = loadedSystemKeystore.getCertificate("system:$alias")
+
+                    // It's possible for `anchor` to be `null` if the user deleted a trust anchor.
+                    // Continue iterating as there may be further collisions after the deleted anchor.
+                    if (anchor == null) {
+                        continue
+                        // This should never happen
+                    } else if (anchor !is X509Certificate) {
+                        // SAFETY: This logs a unique identifier (hash value) only in cases where a file within the
+                        // system's root trust store is not a valid X509 certificate (extremely unlikely error).
+                        // The hash doesn't tell us any sensitive information about the invalid cert or reveal any of
+                        // its contents - it just lets us ID the bad file if a user is having TLS failure issues.
+                        Log.e(TAG, "anchor is not a certificate, alias: $alias")
+                        continue
+                        // If subject and public key match, it's a system root.
+                    } else {
+                        if ((root.subjectX500Principal == anchor.subjectX500Principal) && (root.publicKey == anchor.publicKey)) {
+                            systemTrustAnchorCache.add(key)
+                            return true
+                        }
+                    }
+
+                    i += 1
+                }
+            }
+        }
+
+        // Not found in cache or store: non-public
+        return false
     }
 }
