@@ -46,11 +46,12 @@ pub struct Verifier {
     /// Testing only: The root CA certificate to trust.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
     test_only_root_ca_override: Option<Vec<u8>>,
+    extra_roots: Vec<Vec<u8>>,
     pub(super) crypto_provider: OnceCell<Arc<CryptoProvider>>,
 }
 
 impl Verifier {
-    /// Creates a new instance of a TLS certificate verifier that utilizes the macOS certificate
+    /// Creates a new instance of a TLS certificate verifier that utilizes the Apple certificate
     /// facilities.
     ///
     /// A [`CryptoProvider`] must be set with
@@ -60,6 +61,20 @@ impl Verifier {
         Self {
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
+            extra_roots: Vec::new(),
+            crypto_provider: OnceCell::new(),
+        }
+    }
+
+    /// Creates a new instance of a TLS certificate verifier that utilizes the Apple certificate
+    /// facilities with the addition of extra root certificates to trust.
+    ///
+    /// See [Verifier::new] for the external requriements the verifier needs.
+    pub fn new_with_extra_roots(roots: impl IntoIterator<Item = Vec<u8>>) -> Self {
+        Self {
+            #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
+            test_only_root_ca_override: None,
+            extra_roots: roots.into_iter().collect::<Vec<_>>(),
             crypto_provider: OnceCell::new(),
         }
     }
@@ -69,6 +84,7 @@ impl Verifier {
     pub(crate) fn new_with_fake_root(root: &[u8]) -> Self {
         Self {
             test_only_root_ca_override: Some(root.into()),
+            extra_roots: Vec::new(),
             crypto_provider: OnceCell::new(),
         }
     }
@@ -123,21 +139,42 @@ impl Verifier {
                 .map_err(|e| invalid_certificate(e.to_string()))?;
         }
 
-        // When testing, support using fake roots and ignoring values present on the system.
+        let raw_extra_roots = self.extra_roots.iter();
+        #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
+        let raw_extra_roots = raw_extra_roots.chain(self.test_only_root_ca_override.as_ref());
+
+        let extra_roots = raw_extra_roots
+            .map(|root| {
+                SecCertificate::from_der(root)
+                    .map_err(|_| TlsError::InvalidCertificate(CertificateError::BadEncoding))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // If any extra roots were provided by the user (or tests), provide them to the trust
+        // evaluation regardless of their system trust settings or status.
+        if !extra_roots.is_empty() {
+            trust_evaluation
+                .set_anchor_certificates(&extra_roots)
+                .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))?;
+
+            // We want to trust both the system-installed and the extra roots. This must be set
+            // since by calling `SecTrustSetAnchorCertificates` "disables the trusting of any
+            // anchors other than the ones specified by this function call" by default.
+            trust_evaluation
+                .set_trust_anchor_certificates_only(false)
+                .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))?;
+        }
+
+        // When testing, support using fake roots and ignoring default roots present on the system for
+        // consistency/reproducibility reasons.
         //
         // XXX: This does not currently limit revocation from fetching information online, or prevent
         // the downloading of root CAs.
         #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
         {
-            // If these panicked, it would be a programmer bug in the tests.
-            if let Some(test_root) = &self.test_only_root_ca_override {
-                let test_root =
-                    SecCertificate::from_der(test_root).expect("failed to parse test root");
-
-                // Supply the custom root, which will be the only one trusted during evaluation.
-                trust_evaluation
-                    .set_anchor_certificates(&[test_root])
-                    .expect("failed to set anchors");
+            if self.test_only_root_ca_override.is_some() {
+                // XXX: The test root was already provided to the trust evaluation as an extra root.
+                // We only need to stop use of the default system-installed roots.
 
                 // As per [Apple's docs], building and verifying a certificate chain will
                 // search through the system and keychain to find certificates that it
@@ -174,7 +211,7 @@ impl Verifier {
                         CertificateError::UnknownIssuer,
                     )),
                     errors::errSecInvalidExtendedKeyUsage => Ok(TlsError::InvalidCertificate(
-                        CertificateError::Other(OtherError(std::sync::Arc::new(super::EkuError))),
+                        CertificateError::Other(OtherError(Arc::new(super::EkuError))),
                     )),
                     errors::errSecCertificateRevoked => {
                         Ok(TlsError::InvalidCertificate(CertificateError::Revoked))
