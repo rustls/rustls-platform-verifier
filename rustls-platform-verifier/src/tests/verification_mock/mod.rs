@@ -176,10 +176,23 @@ mock_root_test_cases! {
         expected_result: Ok(()),
         other_error: no_error!(),
     },
-    // Uses a separate certificate from the one used in the "good" case to deal
+
+    // The revocation tests use a separate certificate from the one used in the "good" case to deal
     // with operating systems with validation data caches (e.g. Windows).
     // Linux is not included, since the webpki verifier does not presently support OCSP revocation
     // checking.
+
+    // Check that self-signed certificates, which may or may not be revokved, do not return any
+    // kind of revocation error. It is expected that non-public certificates without revocation information
+    // have no revocation checking performed across platforms.
+    revoked_dns [ any(windows, target_os = "android", target_os = "macos") ] => TestCase {
+        reference_id: EXAMPLE_COM,
+        chain: &[include_bytes!("root1-int1-ee_example.com-revoked.crt"), ROOT1_INT1],
+        stapled_ocsp: None,
+        verification_time: verification_time(),
+        expected_result: Ok(()),
+        other_error: no_error!(),
+    },
     stapled_revoked_dns [ any(windows, target_os = "android", target_os = "macos") ] => TestCase {
         reference_id: EXAMPLE_COM,
         chain: &[include_bytes!("root1-int1-ee_example.com-revoked.crt"), ROOT1_INT1],
