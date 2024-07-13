@@ -1,11 +1,11 @@
-#!/usr/bin/env -S cargo +nightly -Z script
-```cargo
-package.edition = "2021"
-dependencies.anyhow = "1"
-dependencies.reqwest.version = "0.11"
-dependencies.reqwest.default-features = false
-dependencies.reqwest.features = ["blocking", "rustls-tls-webpki-roots"]
-```
+#!/usr/bin/env -S cargo -Z script
+---cargo
+[package]
+edition = "2021"
+[dependencies]
+anyhow = "1"
+reqwest = { version = "0.11", default-features = false, features = ["blocking", "rustls-tls-webpki-roots"] }
+---
 
 use std::{fs, path::Path};
 
