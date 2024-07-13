@@ -4,7 +4,7 @@
 edition = "2021"
 [dependencies]
 anyhow = "1"
-reqwest = { version = "0.11", default-features = false, features = ["blocking", "rustls-tls-webpki-roots"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls-webpki-roots"] }
 ---
 
 use std::{fs, path::Path};
