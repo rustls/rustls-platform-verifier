@@ -1,6 +1,6 @@
 [package]
 name = "rustls-platform-verifier-android"
-version = "0.1.0"
+version = "0.1.1"
 description = "The internal JVM support component of the rustls-platform-verifier crate. You shouldn't depend on this directly."
 repository = "https://github.com/rustls/rustls-platform-verifier"
 license = "MIT OR Apache-2.0"
