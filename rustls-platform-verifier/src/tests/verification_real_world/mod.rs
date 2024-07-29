@@ -14,13 +14,13 @@
 //! effort  
 //!
 //! * If these certificates are ever revoked then it is possible that, even if
-//! with the measures mentioned in the next paragraphs, the operating system
-//! might learn of the revocation externally and cause the tests to fail.
+//!   with the measures mentioned in the next paragraphs, the operating system
+//!   might learn of the revocation externally and cause the tests to fail.
 //!
 //! * Some operating systems, Windows in particular, download the set of
-//! trusted roots dynamically as-needed. If there is a failure during that
-//! fetching then the trust anchors for these certificates might not be
-//! trusted by the operating system's root store.
+//!   trusted roots dynamically as-needed. If there is a failure during that
+//!   fetching then the trust anchors for these certificates might not be
+//!   trusted by the operating system's root store.
 //!
 //! XXX: These tests should be using a stapled OCSP responses so that the
 //! (operating-system-based) verifier doesn't try to fetch an OCSP
