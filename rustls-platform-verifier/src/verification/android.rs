@@ -190,7 +190,7 @@ impl Verifier {
                     VERIFIER_CALL,
                     &[
                         JValue::from(*cx.application_context()),
-                        JValue::from(env.new_string(&server_name.to_str())?),
+                        JValue::from(env.new_string(server_name.to_str())?),
                         JValue::from(env.new_string(AUTH_TYPE)?),
                         JValue::from(JObject::from(allowed_ekus)),
                         JValue::from(ocsp_response),
