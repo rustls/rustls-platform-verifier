@@ -26,7 +26,7 @@ In the release preparation PR, the releaser may include the following checklist 
         * We typically name these branches `rel-xxx` where `xxx` is the major version.
         * We typically leave these branches around for future maintenance releases.
     4. Run `ci/package_android_release.sh` in a UNIX compatible shell
-    5. (Optional) `cargo publish -p rustls-platform-verifier-android --dry-run --alow-dirty`
+    5. (Optional) `cargo publish -p rustls-platform-verifier-android --dry-run --allow-dirty`
         * `--allow-dirty` is required because we don't check-in the generated Maven local repository.
     6. (Optional) Inspect extracted archive to ensure the local Maven repository artifacts are present
         1. Un-tar the `rustls-platform-verifier-android-*.crate` file inside of `target/package`.
@@ -35,7 +35,7 @@ In the release preparation PR, the releaser may include the following checklist 
            unzipped package's `Cargo.toml` as a replacement for the `manifestPath` variable. Run a Gradle Sync and observe everything works.
     7. **Ensure that all version changes are committed to the correct branch before proceeding**. All version increases should be checked in prior
        to publishing on crates.io.
-    8. Publish the Android artifacts' new version: `cargo publish -p rustls-platform-verifier-android --alow-dirty`
+    8. Publish the Android artifacts' new version: `cargo publish -p rustls-platform-verifier-android --allow-dirty`
 
 3. Commit main crate's version increase on the release branch
 4. **Ensure that all version changes are committed to the correct branch before proceeding**. All version increases should be checked in prior
