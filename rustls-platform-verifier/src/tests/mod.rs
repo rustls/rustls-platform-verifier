@@ -57,6 +57,6 @@ pub fn assert_cert_error_eq<E: StdError + PartialEq + 'static>(
 /// we know the test certificates are valid. This must be updated if the mock certificates
 /// are regenerated.
 pub(crate) fn verification_time() -> SystemTime {
-    // Saturday, July 13, 2024 19:24:40 UTC
-    SystemTime::UNIX_EPOCH + Duration::from_secs(1_720_898_680)
+    // Monday, August 5th, 2024 19:50:24 UTC
+    SystemTime::UNIX_EPOCH + Duration::from_secs(1_722_887_424)
 }
