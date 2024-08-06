@@ -67,12 +67,11 @@ jobs:
           rustup target add x86_64-apple-ios
           cargo clippy-ci --target x86_64-apple-ios
 
-      # TODO: Should WASM be checked in CI? If so, with what tooling?
-      # - name: Clippy (WASM)
-      #   if: matrix.os == 'ubuntu-latest'
-      #   run: |
-      #     rustup target add wasm32-unknown-unknown
-      #     cargo clippy-ci --target wasm32-unknown-unknown
+      - name: Clippy (WASM)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo clippy-ci --target wasm32-unknown-unknown
 
   clippy-msrv:
     name: Clippy (MSRV)
@@ -112,7 +111,11 @@ jobs:
           rustup target add x86_64-apple-ios
           cargo clippy-msrv-ci --target x86_64-apple-ios
 
-      # TODO: Consider WASM. See note on "clippy" job.
+      - name: Clippy (WASM)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo clippy-msrv-ci --target wasm32-unknown-unknown
 
   test:
     name: Test
@@ -186,7 +189,7 @@ jobs:
             /Users/runner/work/rustls-platform-verifier/rustls-platform-verifier/android/rustls-platform-verifier/build/outputs/androidTest-results/connected/test-result.pb
 
   # TODO: Test iOS in CI too.
-     
+
   test-freebsd:
     name: Test (FreeBSD)
     runs-on: ubuntu-latest
@@ -222,7 +225,7 @@ jobs:
           components: rustfmt
 
       - run: cargo fmt --all -- --check
-  
+
   android_fmt:
     name: Ktlint
     runs-on: ubuntu-latest
@@ -243,7 +246,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      
+
       - name: Verify release artifact
         run: ./ci/verify_android_release.sh
 
