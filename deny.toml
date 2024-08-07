@@ -1,12 +1,15 @@
 [advisories]
-unsound = "deny"
 yanked = "deny"
-unmaintained = "deny"
 
 [licenses]
-allow-osi-fsf-free = "either"
-copyleft = "warn"
-allow = ["MPL-2.0"]
+allow = [
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    "Unicode-DFS-2016",
+]
 exceptions = [{ allow = ["ISC", "MIT", "OpenSSL"], name = "ring" }]
 
 [[licenses.clarify]]
