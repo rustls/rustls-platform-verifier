@@ -83,7 +83,10 @@ fn invalid_certificate(reason: impl Into<String>) -> rustls::Error {
 /// - id-kp-serverAuth
 // TODO: Chromium also allows for `OID_ANY_EKU` on Android.
 #[cfg(target_os = "windows")]
+// XXX: Windows requires that we NUL terminate EKU strings and we want to make sure that only the
+// data part of the `&str` pointer (using `.as_ptr()`), not all of its metadata.
+// This can be cleaned up when our MSRV is increased to 1.77 and C-string literals are available.
+// See https://github.com/rustls/rustls-platform-verifier/issues/126#issuecomment-2306232794.
 const ALLOWED_EKUS: &[*mut u8] = &["1.3.6.1.5.5.7.3.1\0".as_ptr() as *mut u8];
-
 #[cfg(target_os = "android")]
 pub const ALLOWED_EKUS: &[&str] = &["1.3.6.1.5.5.7.3.1"];
