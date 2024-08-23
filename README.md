@@ -49,7 +49,7 @@ a system CA bundle is unavailable.
 ## Installation and setup
 On most platforms, no setup should be required beyond adding the dependency via `cargo`:
 ```toml
-rustls-platform-verifier = "0.1"
+rustls-platform-verifier = "0.3"
 ```
 
 To get a rustls `ClientConfig` configured to use the platform verifier use:
