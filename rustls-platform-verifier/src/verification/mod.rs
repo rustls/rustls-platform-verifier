@@ -74,7 +74,6 @@ fn invalid_certificate(reason: impl Into<String>) -> rustls::Error {
     )))
 }
 
-#[cfg(any(windows, target_os = "android"))]
 /// List of EKUs that one or more of that *must* be in the end-entity certificate.
 ///
 /// Legacy server-gated crypto OIDs are assumed to no longer be in use.
@@ -82,4 +81,8 @@ fn invalid_certificate(reason: impl Into<String>) -> rustls::Error {
 /// Currently supported:
 /// - id-kp-serverAuth
 // TODO: Chromium also allows for `OID_ANY_EKU` on Android.
+#[cfg(target_os = "windows")]
+const ALLOWED_EKUS: &[*mut u8] = &["1.3.6.1.5.5.7.3.1\0".as_ptr() as *mut u8];
+
+#[cfg(target_os = "android")]
 pub const ALLOWED_EKUS: &[&str] = &["1.3.6.1.5.5.7.3.1"];
