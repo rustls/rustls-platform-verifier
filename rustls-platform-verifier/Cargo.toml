@@ -59,7 +59,7 @@ security-framework = { version = "2.10", features = ["OSX_10_14"] }
 security-framework-sys = { version = "2.10", features = ["OSX_10_14"] }
 
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["wincrypt", "winerror"] }
+windows-sys = { version = "0.52", default-features = false, features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
 
 [dev-dependencies]
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
