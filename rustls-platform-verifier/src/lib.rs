@@ -15,9 +15,6 @@ pub use verification::Verifier;
 #[cfg_attr(docsrs, doc(cfg(target_os = "android")))]
 pub mod android;
 
-#[cfg(windows)]
-mod windows;
-
 /// Fixures and data to support testing the server
 /// certificate verifier.
 #[cfg(any(test, feature = "ffi-testing"))]
