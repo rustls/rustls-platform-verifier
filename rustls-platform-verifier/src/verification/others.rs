@@ -53,12 +53,16 @@ impl Verifier {
     /// Creates a new verifier whose certificate validation is provided by
     /// WebPKI, using root certificates provided by the platform and augmented by
     /// the provided extra root certificates.
-    pub fn new_with_extra_roots(
-        roots: impl IntoIterator<Item = pki_types::TrustAnchor<'static>>,
-    ) -> Self {
+    pub fn new_with_extra_roots(roots: Vec<pki_types::CertificateDer<'static>>) -> Self {
         Self {
             inner: OnceCell::new(),
-            extra_roots: roots.into_iter().collect::<Vec<_>>().into(),
+            extra_roots: roots
+                .into_iter()
+                .flat_map(|root| {
+                    webpki::anchor_from_trusted_cert(&root).map(|anchor| anchor.to_owned())
+                })
+                .collect::<Vec<_>>()
+                .into(),
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
             crypto_provider: OnceCell::new(),
@@ -154,9 +158,9 @@ impl Verifier {
 
         #[cfg(target_arch = "wasm32")]
         {
-            root_store
-                .roots
-                .extend_from_slice(webpki_roots::TLS_SERVER_ROOTS);
+            root_store.add_parsable_certificates(
+                webpki_root_certs::TLS_SERVER_ROOT_CERTS.iter().cloned(),
+            );
         };
 
         WebPkiServerVerifier::builder_with_provider(
