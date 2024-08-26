@@ -41,6 +41,14 @@ macro_rules! mock_root_test_cases {
                 pub fn $name() {
                     super::$name()
                 }
+
+                paste::paste!{
+                    #[cfg(all($target, not(windows), not(target_os = "android")))]
+                    #[test]
+                    pub fn [<$name _extra>](){
+                        super::[<$name _extra>]()
+                    }
+                }
             )+
 
         }
@@ -49,8 +57,15 @@ macro_rules! mock_root_test_cases {
         pub static ALL_TEST_CASES: &'static [fn()] = &[
             $(
                 #[cfg($target)]
-                $name
+                $name,
+
+                paste::paste!{
+                    #[cfg(all($target, not(windows), not(target_os = "android")))]
+                    [<$name _extra>]
+                }
+
             ),+
+
         ];
     };
 
@@ -58,7 +73,14 @@ macro_rules! mock_root_test_cases {
         $(
             #[cfg($target)]
             pub(super) fn $name() {
-                test_with_mock_root(&$test_case);
+                test_with_mock_root(&$test_case, Roots::OnlyExtra);
+            }
+
+            paste::paste!{
+                #[cfg(all($target, not(windows), not(target_os = "android")))]
+                pub(super) fn [<$name _extra>]() {
+                    test_with_mock_root(&$test_case, Roots::ExtraAndPlatform);
+                }
             }
         )+
     };
@@ -301,11 +323,18 @@ mock_root_test_cases! {
     },
 }
 
-fn test_with_mock_root<E: std::error::Error + PartialEq + 'static>(test_case: &TestCase<E>) {
+fn test_with_mock_root<E: std::error::Error + PartialEq + 'static>(
+    test_case: &TestCase<E>,
+    root_src: Roots,
+) {
     ensure_global_state();
     log::info!("verifying {:?}", test_case.expected_result);
 
-    let verifier = Verifier::new_with_fake_root(ROOT1); // TODO: time
+    let verifier = match root_src {
+        Roots::OnlyExtra => Verifier::new_with_fake_root(ROOT1), // TODO: time
+        #[cfg(all(unix, not(target_os = "android")))]
+        Roots::ExtraAndPlatform => Verifier::new_with_extra_roots(vec![ROOT1.into()]),
+    };
     let mut chain = test_case
         .chain
         .iter()
@@ -336,4 +365,16 @@ fn test_with_mock_root<E: std::error::Error + PartialEq + 'static>(test_case: &T
         test_case.other_error.as_ref(),
     );
     // TODO: get into specifics of errors returned when it fails.
+}
+
+enum Roots {
+    /// Test with only extra roots, without loading the platform trust store.
+    ///
+    /// We want to keep things reproducible given the background-managed nature of trust roots on platforms.
+    OnlyExtra,
+    /// Test with loading the extra roots and the platform trust store.
+    ///
+    /// Right now, not all platforms are supported.
+    #[cfg(all(unix, not(target_os = "android")))]
+    ExtraAndPlatform,
 }
