@@ -136,7 +136,7 @@ impl CertChain {
         extra_params.pwszServerName = server_null_terminated.as_mut_ptr();
 
         let mut params = CERT_CHAIN_POLICY_PARA::zeroed_with_size();
-        // Ignore any errors when trying to obtain OCSP recovcation information.
+        // Ignore any errors when trying to obtain OCSP revocation information.
         // This is also done in OpenSSL, Secure Transport from Apple, etc.
         params.dwFlags = CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS;
         // `extra_params` outlives `params`.
