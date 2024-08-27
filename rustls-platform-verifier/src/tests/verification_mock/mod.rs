@@ -221,7 +221,7 @@ mock_root_test_cases! {
     // with AIA because there's no AIA issuer field in the certificate).
     // (AIA is an extension that allows downloading of missing data,
     // like missing certificates, during validation; see
-    // https://datatracker.ietf.org/doc/html/rfc5280#section-5.2.7).
+    // https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.2.1).
     ee_only_dns [ any(windows, unix) ] => TestCase {
         reference_id: EXAMPLE_COM,
         chain: &[ROOT1_INT1_EXAMPLE_COM_GOOD],
