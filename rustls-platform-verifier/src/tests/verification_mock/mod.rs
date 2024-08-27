@@ -43,7 +43,7 @@ macro_rules! mock_root_test_cases {
                 }
 
                 paste::paste!{
-                    #[cfg(all($target, not(windows), not(target_os = "android")))]
+                    #[cfg(all($target, not(target_os = "android")))]
                     #[test]
                     pub fn [<$name _extra>](){
                         super::[<$name _extra>]()
@@ -60,7 +60,7 @@ macro_rules! mock_root_test_cases {
                 $name,
 
                 paste::paste!{
-                    #[cfg(all($target, not(windows), not(target_os = "android")))]
+                    #[cfg(all($target, not(target_os = "android")))]
                     [<$name _extra>]
                 }
 
@@ -77,7 +77,7 @@ macro_rules! mock_root_test_cases {
             }
 
             paste::paste!{
-                #[cfg(all($target, not(windows), not(target_os = "android")))]
+                #[cfg(all($target, not(target_os = "android")))]
                 pub(super) fn [<$name _extra>]() {
                     test_with_mock_root(&$test_case, Roots::ExtraAndPlatform);
                 }
@@ -379,6 +379,6 @@ enum Roots {
     /// Test with loading the extra roots and the platform trust store.
     ///
     /// Right now, not all platforms are supported.
-    #[cfg(all(unix, not(target_os = "android")))]
+    #[cfg(any(windows, all(unix, not(target_os = "android"))))]
     ExtraAndPlatform,
 }
