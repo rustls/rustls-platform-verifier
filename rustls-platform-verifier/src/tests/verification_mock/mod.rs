@@ -336,7 +336,7 @@ fn test_with_mock_root<E: std::error::Error + PartialEq + 'static>(
 
     let verifier = match root_src {
         Roots::OnlyExtra => Verifier::new_with_fake_root(ROOT1), // TODO: time
-        #[cfg(all(unix, not(target_os = "android")))]
+        #[cfg(any(windows, all(unix, not(target_os = "android"))))]
         Roots::ExtraAndPlatform => Verifier::new_with_extra_roots(vec![ROOT1.into()]),
     };
     let mut chain = test_case
