@@ -154,13 +154,9 @@ impl Verifier {
 
         #[cfg(target_arch = "wasm32")]
         {
-            root_store.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|root| {
-                rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
-                    root.subject,
-                    root.spki,
-                    root.name_constraints,
-                )
-            }));
+            root_store
+                .roots
+                .extend_from_slice(webpki_roots::TLS_SERVER_ROOTS);
         };
 
         WebPkiServerVerifier::builder_with_provider(

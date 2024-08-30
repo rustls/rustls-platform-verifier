@@ -67,12 +67,11 @@ jobs:
           rustup target add x86_64-apple-ios
           cargo clippy-ci --target x86_64-apple-ios
 
-      # TODO: Should WASM be checked in CI? If so, with what tooling?
-      # - name: Clippy (WASM)
-      #   if: matrix.os == 'ubuntu-latest'
-      #   run: |
-      #     rustup target add wasm32-unknown-unknown
-      #     cargo clippy-ci --target wasm32-unknown-unknown
+      - name: Clippy (WASM)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          rustup target add wasm32-wasip1
+          cargo clippy-ci --target wasm32-wasip1
 
   clippy-msrv:
     name: Clippy (MSRV)

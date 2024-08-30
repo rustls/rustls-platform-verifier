@@ -47,6 +47,7 @@ android_logger = { version = "0.13", optional = true } # Only used during testin
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 webpki-roots = "0.26"
+webpki = { package = "rustls-webpki", version = "0.102", default-features = false }
 
 # BSD targets require webpki-roots for the real-world verification tests.
 [target.'cfg(target_os = "freebsd")'.dev-dependencies]
