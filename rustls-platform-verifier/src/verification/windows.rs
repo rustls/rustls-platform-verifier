@@ -35,8 +35,10 @@ use std::{
     sync::Arc,
 };
 use windows_sys::Win32::Security::Cryptography::{
-    CertCloseStore, CertEnumCertificatesInStore, CertFreeCertificateChainEngine,
-    CertGetNameStringW, CERT_NAME_SIMPLE_DISPLAY_TYPE,
+    CertAddStoreToCollection, CertCloseStore, CertEnumCertificatesInStore,
+    CertFreeCertificateChainEngine, CertGetNameStringW, CertOpenSystemStoreW,
+    CERT_NAME_SIMPLE_DISPLAY_TYPE, CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG, CERT_STORE_PROV_COLLECTION,
+    PKCS_7_ASN_ENCODING,
 };
 use windows_sys::Win32::{
     Foundation::{
@@ -280,15 +282,45 @@ impl CertificateStore {
         use windows_sys::Win32::Security::Cryptography::CertCreateCertificateChainEngine;
 
         let mut inner = Self::new()?;
-
+        // Extra roots store
         let mut additional_store = CertificateStore::new()?;
         for root in roots {
             additional_store.add_cert(root)?;
         }
+        print_cert_store(additional_store.inner.as_ptr());
+
+        // System sore
+        let mut pvpara: Vec<_> = "root".encode_utf16().collect();
+        pvpara.push(0);
+        let system_store = unsafe { CertOpenSystemStoreW(0, pvpara.as_ptr()) };
+        let collection = unsafe {
+            CertOpenStore(
+                CERT_STORE_PROV_COLLECTION,
+                X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+                0,
+                CERT_STORE_DEFER_CLOSE_UNTIL_LAST_FREE_FLAG,
+                ptr::null(), //must be null in that case
+            )
+        };
+        unsafe {
+            CertAddStoreToCollection(
+                collection,
+                system_store,
+                CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG,
+                0,
+            )
+        };
+        unsafe {
+            CertAddStoreToCollection(
+                collection,
+                additional_store.inner.as_ptr(),
+                CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG,
+                0,
+            )
+        };
 
         let mut config = CERT_CHAIN_ENGINE_CONFIG::zeroed_with_size();
-        config.cAdditionalStore = 1;
-        config.rghAdditionalStore = &mut additional_store.inner.as_ptr();
+        config.hExclusiveRoot = collection;
 
         let mut engine = 0;
         // SAFETY: `engine` is valid to be written to and the config is valid to be read.
@@ -573,7 +605,7 @@ impl Verifier {
             .collect();
 
         let cert_chain = store.new_chain_in(&primary_cert, now)?;
-
+        print_cert_chain_status(&cert_chain);
         let status = cert_chain.verify_chain_policy(server)?;
 
         if status.dwError == 0 {
