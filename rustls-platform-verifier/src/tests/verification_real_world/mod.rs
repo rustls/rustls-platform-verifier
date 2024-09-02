@@ -11,7 +11,7 @@
 //! limitations of what we can do when using real-world certificates. We
 //! accept that the benefit of having these tests outweigh this downside.
 //! If we encounter cases where these tests are flaky we'll spend additional
-//! effort  
+//! effort
 //!
 //! * If these certificates are ever revoked then it is possible that, even if
 //!   with the measures mentioned in the next paragraphs, the operating system
@@ -33,7 +33,7 @@
 //! a networking error causes the fetch of the OCSP response to fail, then
 //! they will continue roughly as though they received a "Good" response.
 //! Thus we don't expect these tests to be flaky w.r.t. that, except for
-//! potentially poor performance.     
+//! potentially poor performance.
 use super::TestCase;
 use crate::tests::{assert_cert_error_eq, ensure_global_state, verification_time};
 use crate::Verifier;
