@@ -111,8 +111,12 @@ pub(super) fn verification_without_mock_root() {
     // runner fails to find any roots with openssl-probe we need to provide webpki-root-certs here
     // or the test will fail with the `OtherError` instead of the expected `CertificateError`.
     #[cfg(target_os = "freebsd")]
-    let verifier =
-        Verifier::new_with_extra_roots(webpki_root_certs::TLS_SERVER_ROOT_CERTS.iter().cloned());
+    let verifier = Verifier::new_with_extra_roots(
+        webpki_root_certs::TLS_SERVER_ROOT_CERTS
+            .iter()
+            .cloned()
+            .collect(),
+    );
 
     #[cfg(not(target_os = "freebsd"))]
     let verifier = Verifier::new();
