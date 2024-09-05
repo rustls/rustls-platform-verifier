@@ -34,18 +34,22 @@ use std::{
     ptr::{self, NonNull},
     sync::Arc,
 };
+use windows_sys::Win32::Security::Cryptography::{
+    CertCloseStore, CertEnumCertificatesInStore, CertFreeCertificateChainEngine,
+    CertGetNameStringW, CERT_NAME_SIMPLE_DISPLAY_TYPE,
+};
 use windows_sys::Win32::{
     Foundation::{
         BOOL, CERT_E_CN_NO_MATCH, CERT_E_EXPIRED, CERT_E_INVALID_NAME, CERT_E_UNTRUSTEDROOT,
         CERT_E_WRONG_USAGE, CRYPT_E_REVOKED, FILETIME, TRUE,
     },
     Security::Cryptography::{
-        CertAddEncodedCertificateToStore, CertCloseStore, CertFreeCertificateChain,
-        CertFreeCertificateChainEngine, CertFreeCertificateContext, CertGetCertificateChain,
-        CertOpenStore, CertSetCertificateContextProperty, CertVerifyCertificateChainPolicy,
-        HTTPSPolicyCallbackData, AUTHTYPE_SERVER, CERT_CHAIN_CACHE_END_CERT, CERT_CHAIN_CONTEXT,
-        CERT_CHAIN_ENGINE_CONFIG, CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS,
-        CERT_CHAIN_POLICY_PARA, CERT_CHAIN_POLICY_SSL, CERT_CHAIN_POLICY_STATUS,
+        CertAddEncodedCertificateToStore, CertFreeCertificateChain, CertFreeCertificateContext,
+        CertGetCertificateChain, CertOpenStore, CertSetCertificateContextProperty,
+        CertVerifyCertificateChainPolicy, HTTPSPolicyCallbackData, AUTHTYPE_SERVER,
+        CERT_CHAIN_CACHE_END_CERT, CERT_CHAIN_CONTEXT, CERT_CHAIN_ENGINE_CONFIG,
+        CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS, CERT_CHAIN_POLICY_PARA,
+        CERT_CHAIN_POLICY_SSL, CERT_CHAIN_POLICY_STATUS,
         CERT_CHAIN_REVOCATION_ACCUMULATIVE_TIMEOUT, CERT_CHAIN_REVOCATION_CHECK_END_CERT,
         CERT_CONTEXT, CERT_OCSP_RESPONSE_PROP_ID, CERT_SET_PROPERTY_IGNORE_PERSIST_ERROR_FLAG,
         CERT_STORE_ADD_ALWAYS, CERT_STORE_DEFER_CLOSE_UNTIL_LAST_FREE_FLAG, CERT_STORE_PROV_MEMORY,
@@ -696,4 +700,240 @@ unsafe trait ZeroedWithSize: Sized {
 
     /// Returns a zeroed structure with its structure size (`cbSize`) field set to the correct value.
     fn zeroed_with_size() -> Self;
+}
+fn print_cert_store(store: windows_sys::Win32::Security::Cryptography::HCERTSTORE) {
+    let mut cert_ctx = ptr::null_mut();
+    loop {
+        cert_ctx = unsafe { CertEnumCertificatesInStore(store, cert_ctx) };
+        if cert_ctx.is_null() {
+            break;
+        }
+        print_cert(cert_ctx);
+    }
+}
+
+fn print_cert(cert_ctx: *const CERT_CONTEXT) {
+    let mut name: Vec<u16> = Vec::with_capacity(128);
+    let char_nb = unsafe {
+        CertGetNameStringW(
+            cert_ctx,
+            CERT_NAME_SIMPLE_DISPLAY_TYPE,
+            0,
+            ptr::null(),
+            name.as_mut_ptr(),
+            128,
+        )
+    };
+    if char_nb == 0 {
+        println!("CertGertNameStringW failed");
+    } else {
+        unsafe {
+            #[allow(clippy::as_conversions)]
+            name.set_len(char_nb as usize - 1);
+        }
+        println!("Certificate '{}' ", String::from_utf16_lossy(&name));
+    }
+}
+
+fn print_cert_chain_status(cert_chain: &CertChain) {
+    println!(
+        "The is {} simple chain in the array",
+        unsafe { *cert_chain.inner.as_ptr() }.cChain
+    );
+    let trust_status = (unsafe { *cert_chain.inner.as_ptr() }).TrustStatus;
+    let error_status = trust_status.dwErrorStatus;
+    if error_status == 0 {
+        println!("No error found for this certificate or chain");
+    }
+
+    if (error_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_IS_NOT_TIME_VALID)
+        != 0
+    {
+        println!("This certificate or one of the certificates in the certificate chain is not time-valid.");
+    }
+    if (error_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_IS_REVOKED) != 0 {
+        println!("Trust for this certificate or one of the certificates in the certificate chain has been revoked.");
+    }
+    if (error_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_IS_NOT_SIGNATURE_VALID)
+        != 0
+    {
+        println!("The certificate or one of the certificates in the certificate chain does not have a valid signature.");
+    }
+    if (error_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_IS_NOT_VALID_FOR_USAGE)
+        != 0
+    {
+        println!("The certificate or certificate chain is not valid in its proposed usage.");
+    }
+    if (error_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_IS_UNTRUSTED_ROOT)
+        != 0
+    {
+        println!("The certificate or certificate chain is based on an untrusted root.");
+    }
+    if (error_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_REVOCATION_STATUS_UNKNOWN)
+        != 0
+    {
+        println!("The revocation status of the certificate or one of the certificates in the certificate chain is unknown.");
+    }
+    if (error_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_IS_CYCLIC) != 0 {
+        println!("One of the certificates in the chain was issued by a certification authority that the original certificate  had certified.");
+    }
+    if (error_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_INVALID_EXTENSION)
+        != 0
+    {
+        println!("One of the certificates has an extension that is not valid. ");
+    }
+    if (error_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_INVALID_POLICY_CONSTRAINTS)
+        != 0
+    {
+        println!("The certificate or one of the certificates in the certificate chain has a policy constraints extension, and one of the issued certificates has a disallowed policy mapping extension or does not have a required issuance policies extension. ");
+    }
+    if (error_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_INVALID_BASIC_CONSTRAINTS)
+        != 0
+    {
+        println!("The certificate or one of the certificates in the certificate chain has a basic constraints extension, and either the certificate cannot be used to issue other certificates, or the chain path length has been exceeded. ");
+    }
+    if (error_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_INVALID_NAME_CONSTRAINTS)
+        != 0
+    {
+        println!("The certificate or one of the certificates in the certificate chain has a name constraints extension that is not valid. ");
+    }
+    if (error_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_HAS_NOT_SUPPORTED_NAME_CONSTRAINT)
+        != 0
+    {
+        println!("The certificate or one of the certificates in the certificate chain has a name constraints extension that contains unsupported fields.");
+    }
+    if (error_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_HAS_NOT_DEFINED_NAME_CONSTRAINT)
+        != 0
+    {
+        println!("The certificate or one of the certificates in the certificate chain has a name constraints extension and a name constraint is missing for one of the name choices in the end certificate. ");
+    }
+    if (error_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_HAS_NOT_PERMITTED_NAME_CONSTRAINT)
+        != 0
+    {
+        println!("The certificate or one of the certificates in the certificate chain has a name constraints extension, and there is not a permitted name constraint for one of the name choices in the end certificate. ");
+    }
+    if (error_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_HAS_EXCLUDED_NAME_CONSTRAINT)
+        != 0
+    {
+        println!("The certificate or one of the certificates in the certificate chain has a name constraints extension, and one of the name choices in the end certificate is explicitly excluded.");
+    }
+    if (error_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_IS_OFFLINE_REVOCATION)
+        != 0
+    {
+        println!("The revocation status of the certificate or one of the certificates in the certificate chain is either offline or stale. ");
+    }
+    if (error_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_NO_ISSUANCE_CHAIN_POLICY)
+        != 0
+    {
+        println!("The end certificate does not have any resultant issuance policies, and one of the issuing certification authority certificates has a policy constraints extension requiring it.");
+    }
+    if (error_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_IS_EXPLICIT_DISTRUST)
+        != 0
+    {
+        println!("The certificate is explicitly distrusted.");
+    }
+    if (error_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_HAS_NOT_SUPPORTED_CRITICAL_EXT)
+        != 0
+    {
+        println!("The certificate does not support a critical extension.");
+    }
+    if (error_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_HAS_WEAK_SIGNATURE)
+        != 0
+    {
+        println!("The certificate has not been strong signed.");
+    }
+    if (error_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_IS_PARTIAL_CHAIN) != 0
+    {
+        println!("The certificate chain is not complete.");
+    }
+    if (error_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_CTL_IS_NOT_TIME_VALID)
+        != 0
+    {
+        println!("A CTL used to create this chain was not time-valid.");
+    }
+    if (error_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_CTL_IS_NOT_SIGNATURE_VALID)
+        != 0
+    {
+        println!("A CTL used to create this chain did not have a valid  signature.");
+    }
+    if (error_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_CTL_IS_NOT_VALID_FOR_USAGE)
+        != 0
+    {
+        println!("A CTL used to create this chain did not have a valid  signature.");
+    }
+
+    let info_status = trust_status.dwInfoStatus;
+    if (info_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_HAS_EXACT_MATCH_ISSUER)
+        != 0
+    {
+        println!("An exact match issuer certificate has been found for this certificate.");
+    }
+    if (info_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_HAS_KEY_MATCH_ISSUER)
+        != 0
+    {
+        println!("A key match issuer certificate has been found for this certificate.");
+    }
+    if (info_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_HAS_NAME_MATCH_ISSUER)
+        != 0
+    {
+        println!("A name match issuer certificate has been found for this certificate.");
+    }
+    if (info_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_IS_SELF_SIGNED) != 0 {
+        println!("This certificate is self-signed.");
+    }
+    if (info_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_HAS_PREFERRED_ISSUER)
+        != 0
+    {
+        println!("The certificate or chain has a preferred issuer. This status code applies to certificates and chains.");
+    }
+    if (info_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_HAS_ISSUANCE_CHAIN_POLICY)
+        != 0
+    {
+        println!(
+            "An issuance chain policy exists. This status code applies to certificates and chains."
+        );
+    }
+    if (info_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_HAS_VALID_NAME_CONSTRAINTS)
+        != 0
+    {
+        println!("A valid name constraints for all namespaces, including UPN. This status code applies to certificates and chains. ");
+    }
+    if (info_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_IS_PEER_TRUSTED) != 0 {
+        println!("This certificate is peer trusted. This status code applies to certificates only");
+    }
+    if (info_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_HAS_CRL_VALIDITY_EXTENDED)
+        != 0
+    {
+        println!("This certificate's certificate revocation list (CRL) validity has been extended. This status code applies to certificates only.");
+    }
+    if (info_status
+        & windows_sys::Win32::Security::Cryptography::CERT_TRUST_IS_FROM_EXCLUSIVE_TRUST_STORE)
+        != 0
+    {
+        println!("The certificate was found in either a store pointed to by the hExclusiveRoot or hExclusiveTrustedPeople member of the CERT_CHAIN_ENGINE_CONFIG structure. ");
+    }
+    if (info_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_IS_COMPLEX_CHAIN) != 0
+    {
+        println!("The certificate chain created is a complex chain.");
+    }
+    if (info_status & windows_sys::Win32::Security::Cryptography::CERT_TRUST_IS_CA_TRUSTED) != 0 {
+        println!("A non-self-signed intermediate CA certificate was found in the store pointed to by the hExclusiveRoot member of the CERT_CHAIN_ENGINE_CONFIG structure");
+    }
 }
