@@ -40,17 +40,18 @@ use windows_sys::Win32::{
         CERT_E_WRONG_USAGE, CRYPT_E_REVOKED, FILETIME, TRUE,
     },
     Security::Cryptography::{
-        CertAddEncodedCertificateToStore, CertCloseStore, CertFreeCertificateChain,
-        CertFreeCertificateChainEngine, CertFreeCertificateContext, CertGetCertificateChain,
-        CertOpenStore, CertSetCertificateContextProperty, CertVerifyCertificateChainPolicy,
-        HTTPSPolicyCallbackData, AUTHTYPE_SERVER, CERT_CHAIN_CACHE_END_CERT, CERT_CHAIN_CONTEXT,
+        CertAddEncodedCertificateToStore, CertCloseStore, CertCreateCertificateChainEngine,
+        CertFreeCertificateChain, CertFreeCertificateChainEngine, CertFreeCertificateContext,
+        CertGetCertificateChain, CertOpenStore, CertSetCertificateContextProperty,
+        CertVerifyCertificateChainPolicy, HTTPSPolicyCallbackData, AUTHTYPE_SERVER,
+        CERT_CHAIN_CACHE_END_CERT, CERT_CHAIN_CONTEXT, CERT_CHAIN_ENGINE_CONFIG,
         CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS, CERT_CHAIN_POLICY_PARA,
         CERT_CHAIN_POLICY_SSL, CERT_CHAIN_POLICY_STATUS,
         CERT_CHAIN_REVOCATION_ACCUMULATIVE_TIMEOUT, CERT_CHAIN_REVOCATION_CHECK_END_CERT,
         CERT_CONTEXT, CERT_OCSP_RESPONSE_PROP_ID, CERT_SET_PROPERTY_IGNORE_PERSIST_ERROR_FLAG,
         CERT_STORE_ADD_ALWAYS, CERT_STORE_DEFER_CLOSE_UNTIL_LAST_FREE_FLAG, CERT_STORE_PROV_MEMORY,
-        CERT_STRONG_SIGN_PARA, CERT_USAGE_MATCH, CRYPT_INTEGER_BLOB, CTL_USAGE,
-        USAGE_MATCH_TYPE_AND, X509_ASN_ENCODING,
+        CERT_STRONG_SIGN_PARA, CERT_TRUST_IS_PARTIAL_CHAIN, CERT_USAGE_MATCH, CRYPT_INTEGER_BLOB,
+        CTL_USAGE, USAGE_MATCH_TYPE_AND, X509_ASN_ENCODING,
     },
 };
 
@@ -76,8 +77,6 @@ struct CERT_CHAIN_PARA {
 }
 
 use crate::verification::invalid_certificate;
-#[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-use windows_sys::Win32::Security::Cryptography::CERT_CHAIN_ENGINE_CONFIG;
 
 // SAFETY: see method implementation
 unsafe impl ZeroedWithSize for CERT_CHAIN_PARA {
@@ -110,7 +109,6 @@ unsafe impl ZeroedWithSize for CERT_CHAIN_POLICY_PARA {
     }
 }
 
-#[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
 // SAFETY: see method implementation
 unsafe impl ZeroedWithSize for CERT_CHAIN_ENGINE_CONFIG {
     fn zeroed_with_size() -> Self {
@@ -273,11 +271,36 @@ impl CertificateStore {
         self.engine.map(|e| e.as_ptr() as isize).unwrap_or(0)
     }
 
+    fn new_with_extra_roots(
+        roots: &[pki_types::CertificateDer<'static>],
+    ) -> Result<Self, TlsError> {
+        let mut inner = Self::new()?;
+        let mut exclusive_store = CertificateStore::new()?;
+        for root in roots {
+            exclusive_store.add_cert(root)?;
+        }
+
+        let mut config = CERT_CHAIN_ENGINE_CONFIG::zeroed_with_size();
+        config.hExclusiveRoot = exclusive_store.inner.as_ptr();
+
+        let mut engine = 0;
+        // SAFETY: `engine` is valid to be written to and the config is valid to be read.
+        let res = unsafe { CertCreateCertificateChainEngine(&config, &mut engine) };
+
+        #[allow(clippy::as_conversions)]
+        let engine = call_with_last_error(|| match NonNull::new(engine as *mut c_void) {
+            Some(c) if res == TRUE => Some(c),
+            _ => None,
+        })?;
+        inner.engine = Some(engine);
+
+        Ok(inner)
+    }
+
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
     fn new_with_fake_root(root: &[u8]) -> Result<Self, TlsError> {
         use windows_sys::Win32::Security::Cryptography::{
-            CertCreateCertificateChainEngine, CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL,
-            CERT_CHAIN_ENABLE_CACHE_AUTO_UPDATE,
+            CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL, CERT_CHAIN_ENABLE_CACHE_AUTO_UPDATE,
         };
 
         let mut inner = Self::new()?;
@@ -442,6 +465,9 @@ pub struct Verifier {
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
     test_only_root_ca_override: Option<Vec<u8>>,
     pub(super) crypto_provider: OnceCell<Arc<CryptoProvider>>,
+    /// Extra trust anchors to add to the verifier above and beyond those provided by
+    /// the system-provided trust stores.
+    extra_roots: Vec<pki_types::CertificateDer<'static>>,
 }
 
 impl Verifier {
@@ -456,6 +482,22 @@ impl Verifier {
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
             crypto_provider: OnceCell::new(),
+            extra_roots: Vec::new(),
+        }
+    }
+
+    /// Creates a new instance of a TLS certificate verifier that utilizes the
+    /// Windows certificate facilities and augmented by the provided extra root certificates.
+    ///
+    /// A [`CryptoProvider`] must be set with
+    /// [`set_provider`][Verifier::set_provider]/[`with_provider`][Verifier::with_provider] or
+    /// [`CryptoProvider::install_default`] before the verifier can be used.
+    pub fn new_with_extra_roots(roots: Vec<pki_types::CertificateDer<'static>>) -> Self {
+        Self {
+            #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
+            test_only_root_ca_override: None,
+            crypto_provider: OnceCell::new(),
+            extra_roots: roots,
         }
     }
 
@@ -465,6 +507,7 @@ impl Verifier {
         Self {
             test_only_root_ca_override: Some(root.into()),
             crypto_provider: OnceCell::new(),
+            extra_roots: Vec::new(),
         }
     }
 
@@ -521,7 +564,27 @@ impl Verifier {
             .chain(Some(0))
             .collect();
 
-        let cert_chain = store.new_chain_in(&primary_cert, now)?;
+        let mut cert_chain = store.new_chain_in(&primary_cert, now)?;
+
+        // We only use `TrustStatus` here because it hasn't had verification performed on it.
+        // SAFETY: The pointer is guaranteed to be non-null.
+        let is_partial_chain = unsafe { *cert_chain.inner.as_ptr() }
+            .TrustStatus
+            .dwErrorStatus
+            & CERT_TRUST_IS_PARTIAL_CHAIN
+            != 0;
+
+        // If we have extra roots and building the chain gave us an error, we try to build a
+        // new one with the extra roots.
+        if !self.extra_roots.is_empty() && is_partial_chain {
+            let mut store = CertificateStore::new_with_extra_roots(&self.extra_roots)?;
+
+            for cert in intermediate_certs.iter().copied() {
+                store.add_cert(cert)?;
+            }
+
+            cert_chain = store.new_chain_in(&primary_cert, now)?;
+        }
 
         let status = cert_chain.verify_chain_policy(server)?;
 
