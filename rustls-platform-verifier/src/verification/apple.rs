@@ -45,10 +45,10 @@ fn system_time_to_cfdate(time: pki_types::UnixTime) -> Result<CFDate, TlsError> 
 pub struct Verifier {
     /// Extra trust anchors to add to the verifier above and beyond those provided by
     /// the system-provided trust stores.
-    extra_roots: Vec<pki_types::CertificateDer<'static>>,
+    extra_roots: Vec<SecCertificate>,
     /// Testing only: The root CA certificate to trust.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-    test_only_root_ca_override: Option<Vec<u8>>,
+    test_only_root_ca_override: Option<SecCertificate>,
     pub(super) crypto_provider: OnceCell<Arc<CryptoProvider>>,
 }
 
@@ -72,13 +72,22 @@ impl Verifier {
     /// facilities with the addition of extra root certificates to trust.
     ///
     /// See [Verifier::new] for the external requirements the verifier needs.
-    pub fn new_with_extra_roots(roots: Vec<pki_types::CertificateDer<'static>>) -> Self {
-        Self {
-            extra_roots: roots,
+    pub fn new_with_extra_roots(
+        roots: Vec<pki_types::CertificateDer<'static>>,
+    ) -> Result<Self, TlsError> {
+        let extra_roots = roots
+            .into_iter()
+            .map(|root| {
+                SecCertificate::from_der(&root)
+                    .map_err(|_| TlsError::InvalidCertificate(CertificateError::BadEncoding))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self {
+            extra_roots,
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
             crypto_provider: OnceCell::new(),
-        }
+        })
     }
 
     /// Creates a test-only TLS certificate verifier which trusts our fake root CA cert.
@@ -86,7 +95,7 @@ impl Verifier {
     pub(crate) fn new_with_fake_root(root: &[u8]) -> Self {
         Self {
             extra_roots: Vec::new(),
-            test_only_root_ca_override: Some(root.into()),
+            test_only_root_ca_override: Some(SecCertificate::from_der(root).unwrap()),
             crypto_provider: OnceCell::new(),
         }
     }
@@ -141,29 +150,24 @@ impl Verifier {
                 .map_err(|e| invalid_certificate(e.to_string()))?;
         }
 
-        let raw_extra_roots = self.extra_roots.iter();
+        #[cfg(not(any(test, feature = "ffi-testing", feature = "dbg")))]
+        let extra_roots = self.extra_roots.as_slice();
 
         #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-        let extra_root = self
-            .test_only_root_ca_override
-            .as_ref()
-            .map(|root| pki_types::CertificateDer::from_slice(root));
-
+        let extra_roots: Vec<_> = self
+            .extra_roots
+            .iter()
+            .chain(self.test_only_root_ca_override.as_ref())
+            .cloned()
+            .collect();
         #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-        let raw_extra_roots = raw_extra_roots.chain(&extra_root).to_owned();
-
-        let extra_roots = raw_extra_roots
-            .map(|root| {
-                SecCertificate::from_der(root)
-                    .map_err(|_| TlsError::InvalidCertificate(CertificateError::BadEncoding))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let extra_roots = extra_roots.as_slice();
 
         // If any extra roots were provided by the user (or tests), provide them to the trust
         // evaluation regardless of their system trust settings or status.
         if !extra_roots.is_empty() {
             trust_evaluation
-                .set_anchor_certificates(&extra_roots)
+                .set_anchor_certificates(extra_roots)
                 .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))?;
 
             // We want to trust both the system-installed and the extra roots. This must be set
