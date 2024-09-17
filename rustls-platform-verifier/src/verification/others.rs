@@ -53,8 +53,10 @@ impl Verifier {
     /// Creates a new verifier whose certificate validation is provided by
     /// WebPKI, using root certificates provided by the platform and augmented by
     /// the provided extra root certificates.
-    pub fn new_with_extra_roots(roots: Vec<pki_types::CertificateDer<'static>>) -> Self {
-        Self {
+    pub fn new_with_extra_roots(
+        roots: Vec<pki_types::CertificateDer<'static>>,
+    ) -> Result<Self, TlsError> {
+        Ok(Self {
             inner: OnceCell::new(),
             extra_roots: roots
                 .into_iter()
@@ -66,7 +68,7 @@ impl Verifier {
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
             crypto_provider: OnceCell::new(),
-        }
+        })
     }
 
     /// Creates a test-only TLS certificate verifier which trusts our fake root CA cert.
