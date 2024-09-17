@@ -133,7 +133,8 @@ fn real_world_test<E: std::error::Error>(test_case: &TestCase<E>) {
             .iter()
             .cloned()
             .collect(),
-    );
+    )
+    .unwrap();
 
     #[cfg(not(target_os = "freebsd"))]
     let verifier = Verifier::new();
