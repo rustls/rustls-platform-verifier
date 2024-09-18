@@ -46,6 +46,29 @@ a system CA bundle is unavailable.
 [openssl-probe]: https://github.com/alexcrichton/openssl-probe
 [webpki-roots]: https://github.com/rustls/webpki-roots
 
+## Deployment Considerations
+
+When choosing to use `rustls-platform-verifier` or another trust store option, there are important differences to consider. These
+are primarily about root certificate availability:
+
+| Backend                          | Updates                         | Roots used                                                                                            |
+|----------------------------------|---------------------------------|-------------------------------------------------------------------------------------------------------|
+| OS/platform (non-Linux/BSD)      | Live pushes                     | System store, with correct (dis)trust decisions from every source available.                          |
+| `rustls-native-certs` + `webpki` | Live pushes                     | System store, with no (dis)trust decisions. All roots are treated equally regardless of their status. |
+| `webpki-roots` + `webpki`        | Static, manual updates required | Hardcoded Mozilla CA roots, and all roots are treated equally.                                        |
+
+**In general**: It is the opinion of the `rustls` team and platform verifier maintainers that this is the best default available for client-side libraries and applications
+making connections to TLS servers when running on common operating systems. This is because it gets both live trust information (new roots, explicit markers, and auto-managed CRLs)
+and better matches the common expectation of apps running on that platform (to use proxies, for example). Otherwise, it becomes your maintenance burden to
+ship updates right away in order to handle increasing numbers of positive and negative trust events in the WebPKI/certificate ecosystem, or risk availability and security concerns.
+
+Even though platform verifiers are sometimes implemented in memory-unsafe languages, it is very unlikely that Rust apps using this library will become a point of weakness.
+This is due to either using a smaller set of servers or just being less exposed then other critical functions of the operating system, default web browser, etc.
+But if you are, for example, fuzzing or scanning all certificates on the open internet, using a 100% Rust option like `webpki` is a better and more secure option.
+
+`rustls-platform-verifier` is widely deployed by several applications that use the `rustls` stack, such as 1Password, Bitwarden, Signal, and `rustup`, on a wide set of OSes. 
+This means that it has received lots of exposure to edge cases and has real-world experience/expertise invested into it to ensure optimal compatibility and security.
+
 ## Installation and setup
 On most platforms, no setup should be required beyond adding the dependency via `cargo`:
 ```toml
