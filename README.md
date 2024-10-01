@@ -48,19 +48,22 @@ a system CA bundle is unavailable.
 
 ## Deployment Considerations
 
-When choosing to use `rustls-platform-verifier` or another trust store option, there are important differences to consider. These
+When choosing to use `rustls-platform-verifier` or another trust store option, these differences are important to consider. They
 are primarily about root certificate availability:
 
-| Backend                          | Updates                         | Roots used                                                                                            |
-|----------------------------------|---------------------------------|-------------------------------------------------------------------------------------------------------|
-| OS/platform (non-Linux/BSD)      | Live pushes                     | System store, with correct (dis)trust decisions from every source available.                          |
-| `rustls-native-certs` + `webpki` | Live pushes                     | System store, with no (dis)trust decisions. All roots are treated equally regardless of their status. |
-| `webpki-roots` + `webpki`        | Static, manual updates required | Hardcoded Mozilla CA roots, and all roots are treated equally.                                        |
+| Backend                                         | Updates                         | Roots used                                                                                            | Supports system-local roots  |
+|-------------------------------------------------|---------------------------------|-------------------------------------------------------------------------------------------------------|------------------------------|
+| `rustls-platform-verifier` (non-Linux/BSD)      | Updated by OS                   | System store, with correct (dis)trust decisions from every source available.                          | Yes                          |
+| `rustls-native-certs` + `webpki`                | Updated by OS                   | System store, with no (dis)trust decisions. All roots are treated equally regardless of their status. | Yes, with exceptions         |
+| `webpki-roots` + `webpki`                       | Static, manual updates required | Hardcoded Mozilla CA roots, limited support for constrained roots.                                    | No                           |
 
-**In general**: It is the opinion of the `rustls` team and platform verifier maintainers that this is the best default available for client-side libraries and applications
+**In general**: It is the opinion of the `rustls` and `rustls-platform-verifier` teams that this is the best default available for client-side libraries and applications
 making connections to TLS servers when running on common operating systems. This is because it gets both live trust information (new roots, explicit markers, and auto-managed CRLs)
 and better matches the common expectation of apps running on that platform (to use proxies, for example). Otherwise, it becomes your maintenance burden to
 ship updates right away in order to handle increasing numbers of positive and negative trust events in the WebPKI/certificate ecosystem, or risk availability and security concerns.
+
+Alternatively, there is a clear answer to use static `webpki-roots` in your application instead if you are deploying containerized applications frequently, where root store changes
+will make it to production faster and any possibly used trust root is static by definition.
 
 Even though platform verifiers are sometimes implemented in memory-unsafe languages, it is very unlikely that Rust apps using this library will become a point of weakness.
 This is due to either using a smaller set of servers or just being less exposed then other critical functions of the operating system, default web browser, etc.
