@@ -54,7 +54,7 @@ impl Verifier {
     /// WebPKI, using root certificates provided by the platform and augmented by
     /// the provided extra root certificates.
     pub fn new_with_extra_roots(
-        roots: Vec<pki_types::CertificateDer<'static>>,
+        roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
     ) -> Result<Self, TlsError> {
         Ok(Self {
             inner: OnceCell::new(),
