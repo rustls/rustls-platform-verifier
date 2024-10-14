@@ -219,11 +219,11 @@ struct CertEngine {
 
 impl CertEngine {
     fn new_with_extra_roots(
-        roots: &[pki_types::CertificateDer<'static>],
+        roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
     ) -> Result<Self, TlsError> {
         let mut exclusive_store = CertificateStore::new()?;
         for root in roots {
-            exclusive_store.add_cert(root)?;
+            exclusive_store.add_cert(&root)?;
         }
 
         let mut config = CERT_CHAIN_ENGINE_CONFIG::zeroed_with_size();
@@ -516,9 +516,9 @@ impl Verifier {
     /// [`set_provider`][Verifier::set_provider]/[`with_provider`][Verifier::with_provider] or
     /// [`CryptoProvider::install_default`] before the verifier can be used.
     pub fn new_with_extra_roots(
-        roots: Vec<pki_types::CertificateDer<'static>>,
+        roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
     ) -> Result<Self, TlsError> {
-        let cert_engine = CertEngine::new_with_extra_roots(&roots)?;
+        let cert_engine = CertEngine::new_with_extra_roots(roots)?;
         Ok(Self {
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,

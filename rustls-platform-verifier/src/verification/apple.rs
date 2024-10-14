@@ -73,7 +73,7 @@ impl Verifier {
     ///
     /// See [Verifier::new] for the external requirements the verifier needs.
     pub fn new_with_extra_roots(
-        roots: Vec<pki_types::CertificateDer<'static>>,
+        roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
     ) -> Result<Self, TlsError> {
         let extra_roots = roots
             .into_iter()

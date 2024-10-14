@@ -128,13 +128,9 @@ fn real_world_test<E: std::error::Error>(test_case: &TestCase<E>) {
     // On BSD systems openssl-probe fails to find the system CA bundle,
     // so we must provide extra roots from webpki-root-cert.
     #[cfg(target_os = "freebsd")]
-    let verifier = Verifier::new_with_extra_roots(
-        webpki_root_certs::TLS_SERVER_ROOT_CERTS
-            .iter()
-            .cloned()
-            .collect(),
-    )
-    .unwrap();
+    let verifier =
+        Verifier::new_with_extra_roots(webpki_root_certs::TLS_SERVER_ROOT_CERTS.iter().cloned())
+            .unwrap();
 
     #[cfg(not(target_os = "freebsd"))]
     let verifier = Verifier::new();

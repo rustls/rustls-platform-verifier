@@ -111,13 +111,9 @@ pub(super) fn verification_without_mock_root() {
     // runner fails to find any roots with openssl-probe we need to provide webpki-root-certs here
     // or the test will fail with the `OtherError` instead of the expected `CertificateError`.
     #[cfg(target_os = "freebsd")]
-    let verifier = Verifier::new_with_extra_roots(
-        webpki_root_certs::TLS_SERVER_ROOT_CERTS
-            .iter()
-            .cloned()
-            .collect(),
-    )
-    .unwrap();
+    let verifier =
+        Verifier::new_with_extra_roots(webpki_root_certs::TLS_SERVER_ROOT_CERTS.iter().cloned())
+            .unwrap();
 
     #[cfg(not(target_os = "freebsd"))]
     let verifier = Verifier::new();
@@ -338,7 +334,7 @@ fn test_with_mock_root<E: std::error::Error + PartialEq + 'static>(
     let verifier = match root_src {
         Roots::OnlyExtra => Verifier::new_with_fake_root(ROOT1), // TODO: time
         #[cfg(not(target_os = "android"))]
-        Roots::ExtraAndPlatform => Verifier::new_with_extra_roots(vec![ROOT1.into()]).unwrap(),
+        Roots::ExtraAndPlatform => Verifier::new_with_extra_roots([ROOT1.into()]).unwrap(),
     };
     let mut chain = test_case
         .chain
