@@ -213,8 +213,8 @@ a `&'static` reference to something that implements the `android::Runtime` trait
 crate then uses to obtain the access when required to the JVM.
 
 ## Credits
-Made with ❤️ by the [1Password](https://1password.com/) and `rustls` teams. Portions of the Android and Windows implementation
-were adapted and referenced from Chromium's previous verifier implementations as well.
+Made with ❤️ by the [1Password](https://1password.com/) and `rustls` teams. Portions of the Android and Windows verifier
+implementations were adapted and referenced from Chromium's previous verifier implementations as well.
 
 #### License
 
