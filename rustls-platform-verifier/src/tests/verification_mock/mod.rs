@@ -13,7 +13,13 @@
 //! any parts of the system outside of these tests. See the `#![cfg(...)]`
 //! immediately below to see which platforms run these tests.
 
-#![cfg(all(any(windows, unix, target_os = "android"), not(target_os = "tvos"),))]
+#![cfg(all(
+    any(windows, unix, target_os = "android"),
+    // These OSes require a simulator runtime and bundle.
+    not(target_os = "tvos"),
+    not(target_os = "watchos"),
+    not(target_os = "visionos")
+))]
 
 use super::TestCase;
 use crate::tests::{assert_cert_error_eq, ensure_global_state, verification_time};
@@ -205,7 +211,7 @@ mock_root_test_cases! {
     // Check that self-signed certificates, which may or may not be revokved, do not return any
     // kind of revocation error. It is expected that non-public certificates without revocation information
     // have no revocation checking performed across platforms.
-    revoked_dns [ any(windows, target_os = "android", target_os = "macos", target_os = "ios") ] => TestCase {
+    revoked_dns [ any(windows, target_os = "android", target_vendor = "apple") ] => TestCase {
         reference_id: EXAMPLE_COM,
         chain: &[include_bytes!("root1-int1-ee_example.com-revoked.crt"), ROOT1_INT1],
         stapled_ocsp: None,
@@ -213,7 +219,7 @@ mock_root_test_cases! {
         expected_result: Ok(()),
         other_error: no_error!(),
     },
-    stapled_revoked_dns [ any(windows, target_os = "android", target_os = "macos", target_os = "ios") ] => TestCase {
+    stapled_revoked_dns [ any(windows, target_os = "android", target_vendor = "apple") ] => TestCase {
         reference_id: EXAMPLE_COM,
         chain: &[include_bytes!("root1-int1-ee_example.com-revoked.crt"), ROOT1_INT1],
         stapled_ocsp: Some(include_bytes!("root1-int1-ee_example.com-revoked.ocsp")),
@@ -221,7 +227,7 @@ mock_root_test_cases! {
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::Revoked)),
         other_error: no_error!(),
     },
-    stapled_revoked_ipv4 [ any(windows, target_os = "android", target_os = "macos", target_os = "ios") ] => TestCase {
+    stapled_revoked_ipv4 [ any(windows, target_os = "android", target_vendor = "apple") ] => TestCase {
         reference_id: LOCALHOST_IPV4,
         chain: &[include_bytes!("root1-int1-ee_127.0.0.1-revoked.crt"), ROOT1_INT1],
         stapled_ocsp: Some(include_bytes!("root1-int1-ee_127.0.0.1-revoked.ocsp")),
@@ -229,7 +235,7 @@ mock_root_test_cases! {
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::Revoked)),
         other_error: no_error!(),
     },
-    stapled_revoked_ipv6 [ any(windows, target_os = "android", target_os = "macos", target_os = "ios") ] => TestCase {
+    stapled_revoked_ipv6 [ any(windows, target_os = "android", target_vendor = "apple") ] => TestCase {
         reference_id: LOCALHOST_IPV6,
         chain: &[include_bytes!("root1-int1-ee_1-revoked.crt"), ROOT1_INT1],
         stapled_ocsp: Some(include_bytes!("root1-int1-ee_1-revoked.ocsp")),

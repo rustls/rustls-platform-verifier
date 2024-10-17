@@ -33,6 +33,16 @@ jobs:
           rustup component add rust-src --toolchain nightly-aarch64-apple-darwin
           cargo +nightly clippy -Zbuild-std --target aarch64-apple-tvos
 
+      - name: Clippy (watchOS)
+        run: |
+          rustup component add rust-src --toolchain nightly-aarch64-apple-darwin
+          cargo +nightly clippy -Zbuild-std --target aarch64-apple-watchos
+
+      - name: Clippy (visionOS)
+        run: |
+          rustup component add rust-src --toolchain nightly-aarch64-apple-darwin
+          cargo +nightly clippy -Zbuild-std --target aarch64-apple-visionos
+
   clippy:
     name: Clippy (stable)
     runs-on: ${{ matrix.os }}
