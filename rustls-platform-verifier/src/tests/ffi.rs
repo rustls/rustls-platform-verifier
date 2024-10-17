@@ -150,7 +150,7 @@ mod dummy {
         #[cfg(any(
             windows,
             target_os = "android",
-            target_os = "macos",
+            target_vendor = "apple",
             target_os = "linux"
         ))]
         let _ = tests::verification_mock::ALL_TEST_CASES;
