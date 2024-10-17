@@ -201,6 +201,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run iOS tests
         run: |
+          rustc --version -v
           rustup target add aarch64-apple-ios-macabi
           cargo test --target aarch64-apple-ios-macabi
 
