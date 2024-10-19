@@ -124,9 +124,7 @@ impl Verifier {
         #[cfg(all(
             unix,
             not(target_os = "android"),
-            not(target_os = "macos"),
-            not(target_os = "ios"),
-            not(target_os = "tvos"),
+            not(target_vendor = "apple"),
             not(target_arch = "wasm32"),
         ))]
         match rustls_native_certs::load_native_certs() {

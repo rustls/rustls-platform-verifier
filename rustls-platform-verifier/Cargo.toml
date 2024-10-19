@@ -36,7 +36,7 @@ jni = { version = "0.19", default-features = false, optional = true } # Only use
 once_cell = "1.9"
 paste = { version = "1.0", default-features = false, optional = true } # Only used when `ffi-testing` feature is enabled
 
-[target.'cfg(all(unix, not(target_os = "android"), not(target_os = "macos"), not(target_os = "ios"), not(target_os = "tvos"), not(target_arch = "wasm32")))'.dependencies]
+[target.'cfg(all(unix, not(target_os = "android"), not(target_vendor = "apple"), not(target_arch = "wasm32")))'.dependencies]
 rustls-native-certs = "0.7"
 webpki = { package = "rustls-webpki", version = "0.102", default-features = false }
 
@@ -54,7 +54,7 @@ webpki-root-certs = "0.26"
 [target.'cfg(target_os = "freebsd")'.dev-dependencies]
 webpki-root-certs = "0.26"
 
-[target.'cfg(any(target_os = "macos", target_os = "ios", target_os = "tvos"))'.dependencies]
+[target.'cfg(any(target_vendor = "apple"))'.dependencies]
 core-foundation = "0.9"
 core-foundation-sys = "0.8"
 security-framework = { version = "2.10", features = ["OSX_10_14"] }
