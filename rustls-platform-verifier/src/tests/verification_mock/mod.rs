@@ -15,7 +15,6 @@
 
 #![cfg(all(
     any(windows, unix, target_os = "android"),
-    not(target_os = "ios"),
     // These OSes require a simulator runtime and bundle.
     not(target_os = "tvos"),
     not(target_os = "watchos"),
