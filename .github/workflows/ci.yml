@@ -194,7 +194,15 @@ jobs:
             ./android/emulator.log
             /Users/runner/work/rustls-platform-verifier/rustls-platform-verifier/android/rustls-platform-verifier/build/outputs/androidTest-results/connected/test-result.pb
 
-  # TODO: Test iOS in CI too.
+  test_ios:
+    name: "Test iOS (Catalyst)"
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run iOS tests
+        run: |
+          rustup target add aarch64-apple-ios-macabi
+          cargo test --target aarch64-apple-ios-macabi
 
   test-freebsd:
     name: Test (FreeBSD)
