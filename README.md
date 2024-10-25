@@ -91,26 +91,21 @@ rustls-platform-verifier = "0.3"
 To get a rustls `ClientConfig` configured to use the platform verifier use:
 
 ```rust
-let config = rustls_platform_verifier::tls_config();
+use rustls::ClientConfig;
+use rustls_platform_verifier::ConfigVerifierExt;
+let config = ClientConfig::with_platform_verifier();
 ```
 
 This crate will use the [rustls process-default crypto provider](https://docs.rs/rustls/latest/rustls/crypto/struct.CryptoProvider.html#using-the-per-process-default-cryptoprovider). To construct a `ClientConfig` with a different `CryptoProvider`, use:
 
 ```rust
-let arc_crypto_provider = std::sync::Arc::new(rustls::crypto::ring::default_provider());
-let config = rustls_platform_verifier::tls_config_with_provider(arc_crypto_provider);
-```
-
-If you want to adapt the configuration, you can build the `ClientConfig` like this:
-
-```rust
-use std::sync::Arc;
 use rustls::ClientConfig;
-use rustls_platform_verifier::Verifier;
-
-let mut config = ClientConfig::builder()
-    .dangerous() // The `Verifier` we're using is actually safe
-    .with_custom_certificate_verifier(Arc::new(Verifier::new()))
+use rustls_platform_verifier::BuilderVerifierExt;
+let arc_crypto_provider = std::sync::Arc::new(rustls::crypto::ring::default_provider());
+let config = ClientConfig::builder_with_provider(arc_crypto_provider)
+    .with_safe_default_protocol_versions()
+    .unwrap()
+    .with_platform_verifier()
     .with_no_client_auth();
 ```
 

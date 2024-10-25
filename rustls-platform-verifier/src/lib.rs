@@ -2,7 +2,7 @@
 #![doc = include_str!("../README.md")]
 #![warn(missing_docs)]
 
-use rustls::ClientConfig;
+use rustls::{client::WantsClientCert, ClientConfig, ConfigBuilder, WantsVerifier};
 use std::sync::Arc;
 
 mod verification;
@@ -36,9 +36,11 @@ pub use tests::ffi::*;
 /// ```ignore
 /// # use reqwest::ClientBuilder;
 /// #[tokio::main]
+/// use rustls_platform_verifier::ConfigVerifierExt;
+///
 /// async fn main() {
 ///     let client = ClientBuilder::new()
-///         .use_preconfigured_tls(rustls_platform_verifier::tls_config())
+///         .use_preconfigured_tls(ClientConfig::with_platform_verifier())
 ///         .build()
 ///         .expect("nothing should fail");
 ///
@@ -49,17 +51,14 @@ pub use tests::ffi::*;
 /// **Important:** You must ensure that your `reqwest` version is using the same Rustls
 /// version as this crate or it will panic when downcasting the `&dyn Any` verifier.
 ///
-/// If you require more control over the rustls `ClientConfig`, you can
-/// instantiate a [Verifier] with [Verifier::default] and then use it
-/// with [`DangerousClientConfigBuilder::with_custom_certificate_verifier`][rustls::client::danger::DangerousClientConfigBuilder::with_custom_certificate_verifier].
+/// If you require more control over the rustls [`ClientConfig`], you can import the
+/// [`BuilderVerifierExt`] trait and call `.with_platform_verifier()` on the [`ConfigBuilder`].
 ///
 /// Refer to the crate level documentation to see what platforms
 /// are currently supported.
+#[deprecated(since = "0.4.0", note = "use the `ConfigVerifierExt` instead")]
 pub fn tls_config() -> ClientConfig {
-    ClientConfig::builder()
-        .dangerous()
-        .with_custom_certificate_verifier(Arc::new(Verifier::new()))
-        .with_no_client_auth()
+    ClientConfig::with_platform_verifier()
 }
 
 /// Attempts to construct a `rustls` configuration that verifies TLS certificates in the best way
@@ -71,13 +70,13 @@ pub fn tls_config() -> ClientConfig {
 /// # Errors
 ///
 /// Propagates any error returned by [`rustls::ConfigBuilder::with_safe_default_protocol_versions`].
+#[deprecated(since = "0.4.0", note = "use the `BuilderVerifierExt` instead")]
 pub fn tls_config_with_provider(
     provider: Arc<rustls::crypto::CryptoProvider>,
 ) -> Result<ClientConfig, rustls::Error> {
-    Ok(ClientConfig::builder_with_provider(provider.clone())
+    Ok(ClientConfig::builder_with_provider(provider)
         .with_safe_default_protocol_versions()?
-        .dangerous()
-        .with_custom_certificate_verifier(Arc::new(Verifier::new().with_provider(provider)))
+        .with_platform_verifier()
         .with_no_client_auth())
 }
 
@@ -87,4 +86,46 @@ pub fn tls_config_with_provider(
 #[cfg(feature = "dbg")]
 pub fn verifier_for_dbg(root: &[u8]) -> Arc<dyn rustls::client::danger::ServerCertVerifier> {
     Arc::new(Verifier::new_with_fake_root(root))
+}
+
+/// Extension trait to help configure [`ClientConfig`]s with the platform verifier.
+pub trait BuilderVerifierExt {
+    /// Configures the `ClientConfig` with the platform verifier.
+    ///
+    /// ```rust
+    /// use rustls::ClientConfig;
+    /// use rustls_platform_verifier::BuilderVerifierExt;
+    /// let config = ClientConfig::builder()
+    ///     .with_platform_verifier()
+    ///     .with_no_client_auth();
+    /// ```
+    fn with_platform_verifier(self) -> ConfigBuilder<ClientConfig, WantsClientCert>;
+}
+
+impl BuilderVerifierExt for ConfigBuilder<ClientConfig, WantsVerifier> {
+    fn with_platform_verifier(self) -> ConfigBuilder<ClientConfig, WantsClientCert> {
+        let provider = self.crypto_provider().clone();
+        self.dangerous()
+            .with_custom_certificate_verifier(Arc::new(Verifier::new().with_provider(provider)))
+    }
+}
+
+/// Extension trait to help build a [`ClientConfig`] with the platform verifier.
+pub trait ConfigVerifierExt {
+    /// Build a [`ClientConfig`] with the platform verifier and the default `CryptoProvider`.
+    ///
+    /// ```rust
+    /// use rustls::ClientConfig;
+    /// use rustls_platform_verifier::ConfigVerifierExt;
+    /// let config = ClientConfig::with_platform_verifier();
+    /// ```
+    fn with_platform_verifier() -> ClientConfig;
+}
+
+impl ConfigVerifierExt for ClientConfig {
+    fn with_platform_verifier() -> ClientConfig {
+        ClientConfig::builder()
+            .with_platform_verifier()
+            .with_no_client_auth()
+    }
 }
