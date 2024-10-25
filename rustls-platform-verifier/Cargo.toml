@@ -29,7 +29,7 @@ cert-logging = ["base64"]
 docsrs = ["jni"]
 
 [dependencies]
-rustls = { version = "0.23", default-features = false, features = ["std"] }
+rustls = { version = "0.23.16", default-features = false, features = ["std"] }
 log = { version = "0.4" }
 base64 = { version = "0.22", optional = true } # Only used when the `cert-logging` feature is enabled.
 jni = { version = "0.19", default-features = false, optional = true } # Only used during doc generation
