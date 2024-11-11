@@ -59,8 +59,7 @@ impl Default for Verifier {
 #[cfg(any(test, feature = "ffi-testing"))]
 impl Drop for Verifier {
     fn drop(&mut self) {
-        with_context::<_, ()>(|cx| {
-            let env = cx.env();
+        with_context::<_, ()>(|cx, env| {
             env.call_static_method(CERT_VERIFIER_CLASS.get(cx)?, "clearMockRoots", "()V", &[])?
                 .v()?;
             Ok(())
@@ -113,8 +112,7 @@ impl Verifier {
             .try_into()
             .map_err(|_| TlsError::FailedToGetCurrentTime)?;
 
-        let verification_result = with_context(|cx| {
-            let env = cx.env();
+        let verification_result = with_context(|cx, env| {
             // We don't provide an initial element so that the array filling can be cleaner.
             // It's valid to provide a `null` value. Ref: https://docs.oracle.com/en/java/javase/13/docs/specs/jni/functions.html -> NewObjectArray
             let cert_list = {
@@ -127,7 +125,7 @@ impl Verifier {
                 for (idx, cert) in certificate_chain {
                     let idx = idx.try_into().unwrap();
                     let cert_buffer = env.byte_array_from_slice(cert)?;
-                    env.set_object_array_element(array, idx, cert_buffer)?
+                    env.set_object_array_element(&array, idx, cert_buffer)?
                 }
 
                 array
@@ -143,17 +141,16 @@ impl Verifier {
                 for (idx, eku) in ALLOWED_EKUS.iter().enumerate() {
                     let idx = idx.try_into().unwrap();
                     let eku = env.new_string(eku)?;
-                    env.set_object_array_element(array, idx, eku)?;
+                    env.set_object_array_element(&array, idx, eku)?;
                 }
 
                 array
             };
 
-            let ocsp_response = ocsp_response
-                .map(|b| env.byte_array_from_slice(b))
-                .transpose()?
-                .map(JObject::from)
-                .unwrap_or_else(JObject::null);
+            let ocsp_response = match ocsp_response {
+                Some(b) => env.byte_array_from_slice(b)?,
+                None => JObject::null().into(),
+            };
 
             #[cfg(any(test, feature = "ffi-testing"))]
             {
@@ -163,7 +160,7 @@ impl Verifier {
                         CERT_VERIFIER_CLASS.get(cx)?,
                         "addMockRoot",
                         "([B)V",
-                        &[JValue::from(mock_root)],
+                        &[JValue::from(&mock_root)],
                     )?
                     .v()
                     .expect("failed to add test root")
@@ -189,13 +186,13 @@ impl Verifier {
                     "verifyCertificateChain",
                     VERIFIER_CALL,
                     &[
-                        JValue::from(*cx.application_context()),
-                        JValue::from(env.new_string(server_name.to_str())?),
-                        JValue::from(env.new_string(AUTH_TYPE)?),
-                        JValue::from(JObject::from(allowed_ekus)),
-                        JValue::from(ocsp_response),
+                        JValue::from(cx.application_context()),
+                        JValue::from(&env.new_string(server_name.to_str())?),
+                        JValue::from(&env.new_string(AUTH_TYPE)?),
+                        JValue::from(&JObject::from(allowed_ekus)),
+                        JValue::from(&ocsp_response),
                         JValue::Long(now),
-                        JValue::from(JObject::from(cert_list)),
+                        JValue::from(&JObject::from(cert_list)),
                     ],
                 )?
                 .l()?;
@@ -245,9 +242,12 @@ impl Verifier {
     }
 }
 
-fn extract_result_info(env: &JNIEnv<'_>, result: JObject<'_>) -> (VerifierStatus, Option<String>) {
+fn extract_result_info(
+    env: &mut JNIEnv<'_>,
+    result: JObject<'_>,
+) -> (VerifierStatus, Option<String>) {
     let status_code = env
-        .get_field(result, "code", "I")
+        .get_field(&result, "code", "I")
         .and_then(|code| code.i())
         .unwrap();
 
@@ -266,11 +266,15 @@ fn extract_result_info(env: &JNIEnv<'_>, result: JObject<'_>) -> (VerifierStatus
     let msg = env
         .get_field(result, "message", "Ljava/lang/String;")
         .and_then(|m| m.l())
-        .map(|o| (!o.is_null()).then_some(o))
-        .and_then(|s| s.map(|s| JavaStr::from_env(env, s.into())).transpose())
+        .map(|s| {
+            if s.is_null() {
+                None
+            } else {
+                JavaStr::from_env(env, &s.into()).ok().map(String::from)
+            }
+        })
         .unwrap();
-
-    (status, msg.map(String::from))
+    (status, msg)
 }
 
 impl ServerCertVerifier for Verifier {
