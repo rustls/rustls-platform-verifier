@@ -78,7 +78,6 @@ const LETSENCRYPT_ORG: &str = "letsencrypt.org";
 const VALID_LETSENCRYPT_ORG_CHAIN: &[&[u8]] = &[
     include_bytes!("letsencrypt_org_valid_1.crt"),
     include_bytes!("letsencrypt_org_valid_2.crt"),
-    include_bytes!("letsencrypt_org_valid_3.crt"),
 ];
 
 macro_rules! real_world_test_cases {
