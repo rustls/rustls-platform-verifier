@@ -37,7 +37,7 @@ once_cell = "1.9"
 paste = { version = "1.0", default-features = false, optional = true } # Only used when `ffi-testing` feature is enabled
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_vendor = "apple"), not(target_arch = "wasm32")))'.dependencies]
-rustls-native-certs = "0.7"
+rustls-native-certs = "0.8"
 webpki = { package = "rustls-webpki", version = "0.102", default-features = false }
 
 [target.'cfg(target_os = "android")'.dependencies]
