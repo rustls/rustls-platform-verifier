@@ -127,34 +127,27 @@ impl Verifier {
             not(target_vendor = "apple"),
             not(target_arch = "wasm32"),
         ))]
-        match rustls_native_certs::load_native_certs() {
-            Ok(certs) => {
-                let (added, ignored) = root_store.add_parsable_certificates(certs);
-
-                if ignored != 0 {
-                    log::warn!("Some CA root certificates were ignored due to errors");
-                }
-
-                if root_store.is_empty() {
-                    log::error!("No CA certificates were loaded from the system");
-                } else {
-                    log::debug!("Loaded {added} CA certificates from the system");
-                }
+        {
+            let result = rustls_native_certs::load_native_certs();
+            let (added, ignored) = root_store.add_parsable_certificates(result.certs);
+            if ignored != 0 {
+                log::warn!("Some CA root certificates were ignored due to errors");
             }
-            Err(err) => {
-                // This only contains a path to a system directory:
-                // https://github.com/rustls/rustls-native-certs/blob/bc13b9a6bfc2e1eec881597055ca49accddd972a/src/lib.rs#L91-L94
-                const MSG: &str = "failed to load system root certificates: ";
 
-                // Don't return an error if this fails when other roots have already been loaded via
-                // `new_with_extra_roots`. It leads to extra failure cases where connections would otherwise still work.
-                if root_store.is_empty() {
-                    return Err(rustls::Error::General(format!("{MSG}{err}")));
-                } else {
-                    log::error!("{MSG}{err}");
-                }
+            for error in result.errors {
+                log::warn!("Error loading CA root certificate: {error}");
             }
-        };
+
+            // Don't return an error if this fails when other roots have already been loaded via
+            // `new_with_extra_roots`. It leads to extra failure cases where connections would otherwise still work.
+            if root_store.is_empty() {
+                return Err(rustls::Error::General(
+                    "No CA certificates were loaded from the system".to_owned(),
+                ));
+            } else {
+                log::debug!("Loaded {added} CA certificates from the system");
+            }
+        }
 
         #[cfg(target_arch = "wasm32")]
         {
