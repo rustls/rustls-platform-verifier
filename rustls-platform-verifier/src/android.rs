@@ -190,7 +190,7 @@ impl CachedClass {
     }
 
     /// Gets the cached class reference, loaded on first use
-    pub(super) fn get<'a: 'b, 'b>(&'a self, cx: &mut Context<'b>) -> Result<&JClass<'b>, Error> {
+    pub(super) fn get<'a: 'b, 'b>(&'a self, cx: &mut Context<'b>) -> Result<&'a JClass<'b>, Error> {
         let class = self.class.get_or_try_init(|| -> Result<_, Error> {
             let class = cx.load_class(self.name)?;
 
