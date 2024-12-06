@@ -147,6 +147,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       # Turn on Linux KVM features/support for faster Android emulation.
       # References:
@@ -199,6 +201,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Run iOS tests
         run: |
           rustup target add aarch64-apple-ios-macabi
@@ -209,6 +213,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: test on freebsd
         uses: vmactions/freebsd-vm@v1
         # Settings adopted from https://github.com/quinn-rs/quinn
