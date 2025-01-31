@@ -85,7 +85,7 @@ This means that it has received lots of exposure to edge cases and has real-worl
 ## Installation and setup
 On most platforms, no setup should be required beyond adding the dependency via `cargo`:
 ```toml
-rustls-platform-verifier = "0.3"
+rustls-platform-verifier = "0.5"
 ```
 
 To get a rustls `ClientConfig` configured to use the platform verifier use:
