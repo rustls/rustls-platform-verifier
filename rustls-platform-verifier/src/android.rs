@@ -70,7 +70,7 @@ fn global() -> &'static Global {
 
 /// Initializes and stores the required context for the Android platform.
 ///
-/// This method will setup and store an envrionment locally. This is useful if
+/// This method will setup and store an environment locally. This is useful if
 /// nothing else in your application needs access the Android runtime.
 ///
 /// Initialization must be done before any verification is attempted.
@@ -92,7 +92,7 @@ pub fn init_hosted(env: &mut JNIEnv, context: JObject) -> Result<(), JNIError> {
 
 /// Initializes and stores the required context for the Android platform.
 ///
-/// This method utilizes an existing Android runtime envrionment and set anything
+/// This method utilizes an existing Android runtime environment and set anything
 /// else up on its own. This is useful if your application already interacts with
 /// the runtime and has pre-existing handles.
 ///
