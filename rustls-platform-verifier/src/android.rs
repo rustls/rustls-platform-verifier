@@ -1,4 +1,23 @@
-//! A small wrapper over interacting with the JNI in a type-safe way.
+//! On Android, initialization must be done before any verification is attempted.
+//!
+//! <div class="warning">
+//! Some manual setup is required, outside of cargo, to use this crate on Android. In order to use
+//! Android’s certificate verifier, the crate needs to call into the JVM. A small Kotlin component
+//! must be included in your app’s build to support `rustls-platform-verifier`.
+//!
+//! See the [crate's Android section][crate#android] for more details.
+//! </div>
+//!
+//! # Examples
+//!
+//! ```
+//! // A typical entrypoint signature for obtaining the necessary pointers
+//! pub fn android_init(raw_env: *mut c_void, raw_context: *mut c_void) -> Result<(), jni::errors::Error> {
+//!     let mut env = unsafe { JNIEnv::from_raw(raw_env as *mut jni::sys::JNIEnv).unwrap() };
+//!     let context = unsafe { JObject::from_raw(raw_context as jni::sys::jobject) };
+//!     rustls_platform_verifier::android::init_with_env(&mut env, context)?;
+//! }
+//! ```
 
 use jni::errors::Error as JNIError;
 use jni::objects::{GlobalRef, JClass, JObject, JValue};
