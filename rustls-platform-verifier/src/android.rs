@@ -103,6 +103,36 @@ pub fn init_external(runtime: &'static dyn Runtime) {
     GLOBAL.get_or_init(|| Global::External(runtime));
 }
 
+/// Initialize with references to the JVM, context, and class loader.
+///
+/// This is useful when you're already interacting with `jni-rs` wrapped objects and want to use
+/// global references to objects for efficiency.
+///
+/// This function will never panic.
+///
+/// # Examples
+///
+/// ```
+/// pub fn android_init(raw_env: *mut c_void, raw_context: *mut c_void) -> Result<(), jni::errors::Error> {
+///     let mut env = unsafe { jni::JNIEnv::from_raw(raw_env as *mut jni::sys::JNIEnv).unwrap() };
+///     let context = unsafe { JObject::from_raw(raw_context as jni::sys::jobject) };
+///     let loader = env.call_method(&context, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?;
+///
+///     rustls_platform_verifier::android::init_with_refs(
+///         env.get_java_vm()?,
+///         env.new_global_ref(context)?,
+///         env.new_global_ref(JObject::try_from(loader)?)?,
+///     );
+/// }
+/// ```
+pub fn init_with_refs(java_vm: JavaVM, context: GlobalRef, loader: GlobalRef) {
+    GLOBAL.get_or_init(|| Global::Internal {
+        java_vm,
+        context,
+        loader,
+    });
+}
+
 /// Wrapper for JNI errors that will log and clear exceptions
 /// It should generally be preferred to `jni::errors::Error`
 #[derive(Debug)]
