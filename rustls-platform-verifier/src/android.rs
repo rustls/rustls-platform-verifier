@@ -68,33 +68,35 @@ fn global() -> &'static Global {
         .expect("Expect rustls-platform-verifier to be initialized")
 }
 
-/// Initializes and stores the required context for the Android platform.
+/// Initialize given a typical Android NDK `JNIEnv` and `jobject` context.
 ///
-/// This method will setup and store an environment locally. This is useful if
-/// nothing else in your application needs access the Android runtime.
-///
-/// Initialization must be done before any verification is attempted.
-pub fn init_hosted(env: &mut JNIEnv, context: JObject) -> Result<(), JNIError> {
+/// This method will setup and store an environment locally. This is useful if nothing else in your
+/// application needs access the Android runtime.
+pub fn init_with_env(env: &mut JNIEnv, context: JObject) -> Result<(), JNIError> {
     GLOBAL.get_or_try_init(|| -> Result<_, JNIError> {
         let loader =
             env.call_method(&context, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?;
-        let global = Global::Internal {
+
+        Ok(Global::Internal {
             java_vm: env.get_java_vm()?,
             context: env.new_global_ref(context)?,
             loader: env.new_global_ref(JObject::try_from(loader)?)?,
-        };
-
-        Ok(global)
+        })
     })?;
-
     Ok(())
+}
+
+/// *Deprecated*: This is the original method name for [`init_with_env`] and is functionally
+/// identical.
+pub fn init_hosted(env: &mut JNIEnv, context: JObject) -> Result<(), JNIError> {
+    init_with_env(env, context)
 }
 
 /// Initializes and stores the required context for the Android platform.
 ///
-/// This method utilizes an existing Android runtime environment and set anything
-/// else up on its own. This is useful if your application already interacts with
-/// the runtime and has pre-existing handles.
+/// This method utilizes an existing Android runtime environment and set anything else up on its
+/// own. This is useful if your application already interacts with the runtime and has pre-existing
+/// handles.
 ///
 /// This function will never panic, and is therefore safe to use at FFI boundaries.
 ///
