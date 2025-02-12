@@ -92,17 +92,20 @@ pub fn init_hosted(env: &mut JNIEnv, context: JObject) -> Result<(), JNIError> {
     init_with_env(env, context)
 }
 
-/// Initializes and stores the required context for the Android platform.
+/// Initialize with a runtime that can dynamically serve references to
+/// the JVM, context, and class loader.
 ///
-/// This method utilizes an existing Android runtime environment and set anything else up on its
-/// own. This is useful if your application already interacts with the runtime and has pre-existing
-/// handles.
+/// This is the most flexible option, and is useful for advanced use cases.
 ///
-/// This function will never panic, and is therefore safe to use at FFI boundaries.
-///
-/// Initialization must be done before any verification is attempted.
-pub fn init_external(runtime: &'static dyn Runtime) {
+/// This function will never panic.
+pub fn init_with_runtime(runtime: &'static dyn Runtime) {
     GLOBAL.get_or_init(|| Global::External(runtime));
+}
+
+/// *Deprecated*: This is the original method name for [`init_with_runtime`] and is functionally
+/// identical.
+pub fn init_external(runtime: &'static dyn Runtime) {
+    init_with_runtime(runtime);
 }
 
 /// Initialize with references to the JVM, context, and class loader.
