@@ -1,9 +1,9 @@
 //! On Android, initialization must be done before any verification is attempted.
 //!
 //! <div class="warning">
-//! Some manual setup is required, outside of cargo, to use this crate on Android. In order to use
+//! Some manual setup is required outside of cargo to use this crate on Android. In order to use
 //! Android’s certificate verifier, the crate needs to call into the JVM. A small Kotlin component
-//! must be included in your app’s build to support `rustls-platform-verifier`.
+//! must be included in your app’s build to support rustls-platform-verifier.
 //!
 //! See the [crate's Android section][crate#android] for more details.
 //! </div>
@@ -87,10 +87,10 @@ fn global() -> &'static Global {
         .expect("Expect rustls-platform-verifier to be initialized")
 }
 
-/// Initialize given a typical Android NDK `JNIEnv` and `jobject` context.
+/// Initialize given a typical Android NDK [`JNIEnv`] and [`JObject`] context.
 ///
 /// This method will setup and store an environment locally. This is useful if nothing else in your
-/// application needs access the Android runtime.
+/// application needs to access the Android runtime.
 pub fn init_with_env(env: &mut JNIEnv, context: JObject) -> Result<(), JNIError> {
     GLOBAL.get_or_try_init(|| -> Result<_, JNIError> {
         let loader =
