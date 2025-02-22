@@ -83,6 +83,14 @@ jobs:
           rustup target add wasm32-wasip1
           cargo clippy-ci --target wasm32-wasip1
 
+      # Update any flexible dependencies that may have SemVer applicable changes
+      # to ensure the project keeps building with the whole version range. This is:
+      # - windows-sys 0.52, which `rustls-platform-verifier` also should accept at 0.59.
+      - name: Clippy (dependency version checks)
+        run: |
+          cargo update -p windows-sys@0.52.0
+          cargo clippy-ci
+
   clippy-msrv:
     name: Clippy (MSRV)
     runs-on: ${{ matrix.os }}
