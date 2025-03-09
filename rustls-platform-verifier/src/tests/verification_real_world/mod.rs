@@ -34,13 +34,16 @@
 //! they will continue roughly as though they received a "Good" response.
 //! Thus we don't expect these tests to be flaky w.r.t. that, except for
 //! potentially poor performance.
+
+use rustls::client::danger::ServerCertVerifier;
+use rustls::pki_types;
+#[cfg(not(any(target_vendor = "apple", windows)))]
+use rustls::pki_types::{DnsName, ServerName};
+use rustls::{CertificateError, Error as TlsError};
+
 use super::TestCase;
 use crate::tests::{assert_cert_error_eq, ensure_global_state, verification_time};
 use crate::Verifier;
-use rustls::client::danger::ServerCertVerifier;
-use rustls::pki_types;
-use rustls::{CertificateError, Error as TlsError};
-use std::convert::TryFrom;
 
 // This is the certificate chain presented by one server for
 // my.1password.com when this test was updated 2023-08-01. It is
@@ -200,6 +203,12 @@ real_world_test_cases! {
         chain: VALID_1PASSWORD_COM_CHAIN,
         stapled_ocsp: None,
         verification_time: verification_time(),
+        #[cfg(not(any(target_vendor = "apple", windows)))]
+        expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForNameContext {
+            expected: ServerName::DnsName(DnsName::try_from("agilebits.com").unwrap()),
+            presented: vec!["DnsName(\"*.1password.com\")".to_owned(), "DnsName(\"1password.com\")".to_owned()],
+        })),
+        #[cfg(any(target_vendor = "apple", windows))]
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
         other_error: no_error!(),
     },
@@ -220,6 +229,12 @@ real_world_test_cases! {
         chain: VALID_UNRELATED_CHAIN,
         stapled_ocsp: None,
         verification_time: verification_time(),
+        #[cfg(not(any(target_vendor = "apple", windows)))]
+        expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForNameContext {
+            expected: ServerName::DnsName(DnsName::try_from("my.1password.com").unwrap()),
+            presented: vec!["DnsName(\"agilebits.com\")".to_owned(), "DnsName(\"www.agilebits.com\")".to_owned()],
+        })),
+        #[cfg(any(target_vendor = "apple", windows))]
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
         other_error: no_error!(),
     },

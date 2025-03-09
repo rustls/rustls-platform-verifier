@@ -29,7 +29,7 @@ cert-logging = ["base64"]
 docsrs = ["jni"]
 
 [dependencies]
-rustls = { version = "0.23.16", default-features = false, features = ["std"] }
+rustls = { version = "0.23.24", default-features = false, features = ["std"] }
 log = { version = "0.4" }
 base64 = { version = "0.22", optional = true } # Only used when the `cert-logging` feature is enabled.
 jni = { version = "0.21", default-features = false, optional = true } # Only used during doc generation
@@ -37,16 +37,16 @@ once_cell = "1.9"
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_vendor = "apple"), not(target_arch = "wasm32")))'.dependencies]
 rustls-native-certs = "0.8"
-webpki = { package = "rustls-webpki", version = "0.102", default-features = false }
+webpki = { package = "rustls-webpki", version = "0.103", default-features = false }
 
 [target.'cfg(target_os = "android")'.dependencies]
 rustls-platform-verifier-android = { path = "../android-release-support", version = "0.1.0" }
 jni = { version = "0.21", default-features = false }
-webpki = { package = "rustls-webpki", version = "0.102", default-features = false }
+webpki = { package = "rustls-webpki", version = "0.103", default-features = false }
 android_logger = { version = "0.15", optional = true } # Only used during testing.
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-webpki = { package = "rustls-webpki", version = "0.102", default-features = false }
+webpki = { package = "rustls-webpki", version = "0.103", default-features = false }
 webpki-root-certs = "0.26"
 
 # BSD targets require webpki-roots-certs for the real-world verification tests.

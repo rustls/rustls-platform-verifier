@@ -21,15 +21,21 @@
     not(target_os = "visionos")
 ))]
 
+use std::convert::TryFrom;
+use std::net::IpAddr;
+#[cfg(not(any(target_vendor = "apple", windows)))]
+use std::net::{Ipv4Addr, Ipv6Addr};
+use std::sync::Arc;
+
+use rustls::client::danger::ServerCertVerifier;
+use rustls::pki_types;
+#[cfg(not(any(target_vendor = "apple", windows)))]
+use rustls::pki_types::{DnsName, ServerName};
+use rustls::{CertificateError, Error as TlsError, OtherError};
+
 use super::TestCase;
 use crate::tests::{assert_cert_error_eq, ensure_global_state, verification_time};
 use crate::verification::{EkuError, Verifier};
-use rustls::client::danger::ServerCertVerifier;
-use rustls::pki_types;
-use rustls::{CertificateError, Error as TlsError, OtherError};
-use std::convert::TryFrom;
-use std::net::IpAddr;
-use std::sync::Arc;
 
 macro_rules! mock_root_test_cases {
     { $( $name:ident [ $target:meta ] => $test_case:expr ),+ , } => {
@@ -258,6 +264,12 @@ mock_root_test_cases! {
         chain: &[ROOT1_INT1_EXAMPLE_COM_GOOD, ROOT1_INT1],
         stapled_ocsp: None,
         verification_time: verification_time(),
+        #[cfg(not(any(target_vendor = "apple", windows)))]
+        expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForNameContext {
+            expected: ServerName::DnsName(DnsName::try_from("example.org").unwrap()),
+            presented: vec!["DnsName(\"example.com\")".to_owned()]
+        })),
+        #[cfg(any(target_vendor = "apple", windows))]
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
         other_error: no_error!(),
     },
@@ -266,6 +278,12 @@ mock_root_test_cases! {
         chain: &[ROOT1_INT1_LOCALHOST_IPV4_GOOD, ROOT1_INT1],
         stapled_ocsp: None,
         verification_time: verification_time(),
+        #[cfg(not(any(target_vendor = "apple", windows)))]
+        expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForNameContext {
+            expected: ServerName::IpAddress(pki_types::IpAddr::V4(Ipv4Addr::from([198, 168, 0, 1]).into())),
+            presented: vec!["IpAddress(127.0.0.1)".to_owned()],
+        })),
+        #[cfg(any(target_vendor = "apple", windows))]
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
         other_error: no_error!(),
     },
@@ -274,6 +292,12 @@ mock_root_test_cases! {
         chain: &[ROOT1_INT1_LOCALHOST_IPV6_GOOD, ROOT1_INT1],
         stapled_ocsp: None,
         verification_time: verification_time(),
+        #[cfg(not(any(target_vendor = "apple", windows)))]
+        expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForNameContext {
+            expected: ServerName::IpAddress(pki_types::IpAddr::V6(Ipv6Addr::from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 198, 168, 0, 1]).into())),
+            presented: vec!["IpAddress(0::1)".to_owned()],
+        })),
+        #[cfg(any(target_vendor = "apple", windows))]
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
         other_error: no_error!(),
     },
