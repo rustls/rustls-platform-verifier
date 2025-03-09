@@ -43,16 +43,7 @@ macro_rules! mock_root_test_cases {
                 pub fn $name() {
                     super::$name()
                 }
-
-                paste::paste!{
-                    #[cfg(all($target, not(target_os = "android")))]
-                    #[test]
-                    pub fn [<$name _extra>](){
-                        super::[<$name _extra>]()
-                    }
-                }
             )+
-
         }
 
         #[cfg(feature = "ffi-testing")]
@@ -60,13 +51,7 @@ macro_rules! mock_root_test_cases {
             $(
                 #[cfg($target)]
                 $name,
-
-                paste::paste!{
-                    #[cfg(all($target, not(target_os = "android")))]
-                    [<$name _extra>]
-                }
-
-            ),+
+            )+
 
         ];
     };
@@ -76,13 +61,8 @@ macro_rules! mock_root_test_cases {
             #[cfg($target)]
             pub(super) fn $name() {
                 test_with_mock_root(&$test_case, Roots::OnlyExtra);
-            }
-
-            paste::paste!{
                 #[cfg(all($target, not(target_os = "android")))]
-                pub(super) fn [<$name _extra>]() {
-                    test_with_mock_root(&$test_case, Roots::ExtraAndPlatform);
-                }
+                test_with_mock_root(&$test_case, Roots::ExtraAndPlatform);
             }
         )+
     };
