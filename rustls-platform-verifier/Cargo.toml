@@ -43,7 +43,7 @@ webpki = { package = "rustls-webpki", version = "0.102", default-features = fals
 rustls-platform-verifier-android = { path = "../android-release-support", version = "0.1.0" }
 jni = { version = "0.21", default-features = false }
 webpki = { package = "rustls-webpki", version = "0.102", default-features = false }
-android_logger = { version = "0.13", optional = true } # Only used during testing.
+android_logger = { version = "0.15", optional = true } # Only used during testing.
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 webpki = { package = "rustls-webpki", version = "0.102", default-features = false }
