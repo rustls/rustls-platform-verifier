@@ -118,8 +118,8 @@ component must be included in your app's build to support `rustls-platform-verif
 #### Gradle Setup
 
 `rustls-platform-verifier` bundles the required native components in the crate, but the project must be setup to locate them
-automatically and correctly. These steps assume you are using `.gradle` Groovy files because they're the most common, but everything
-is 100% applicable to Kotlin script (`.gradle.kts`) configurations too with a few replacements.
+automatically and correctly. These steps assume you are using `.gradle` Groovy files because they're the most common, but if you are using
+Kotlin scripts (`.gradle.kts`) for configuration instead, an example snippet is included towards the end of this section.
 
 Inside of your project's `build.gradle` file, add the following code and Maven repository definition. If applicable, this should only be the one "app" sub-project that
 will actually be using this crate at runtime. With multiple projects running this, your Gradle configuration performance may degrade.
@@ -143,7 +143,7 @@ repositories {
 String findRustlsPlatformVerifierProject() {
     def dependencyText = providers.exec {
         it.workingDir = new File("../")
-        commandLine("cargo", "metadata", "--format-version", "1", "--manifest-path", "$PATH_TO_DEPENDENT_CRATE/Cargo.toml")
+        commandLine("cargo", "metadata", "--format-version", "1", "--filter-platform", "aarch64-linux-android", "--manifest-path", "$PATH_TO_DEPENDENT_CRATE/Cargo.toml")
     }.standardOutput.asText.get()
 
     def dependencyJson = new JsonSlurper().parseText(dependencyText)
@@ -162,6 +162,67 @@ new releases of `rustls-platform-verifier` are published. If you only use publis
 
 These script snippets can be tweaked as best suits your project, but the `cargo metadata` invocation must be included so that the Android
 implementation part can be located on-disk.
+
+##### Kotlin and Gradle
+
+<details>
+<summary>Kotlin script example</summary>
+
+`build.gradle.kts`:
+```kotlin
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+
+buildscript {
+    dependencies {
+        classpath(libs.kotlinx.serialization.json)
+    }
+}
+
+repositories {
+    rustlsPlatformVerifier()
+}
+
+fun RepositoryHandler.rustlsPlatformVerifier(): MavenArtifactRepository {
+    @Suppress("UnstableApiUsage")
+    val manifestPath = let {
+        val dependencyJson = providers.exec {
+            workingDir = File(project.rootDir, "../")
+            commandLine("cargo", "metadata", "--format-version", "1", "--filter-platform", "aarch64-linux-android", "--manifest-path", "$PATH_TO_DEPENDENT_CRATE/Cargo.toml")
+        }.standardOutput.asText
+
+        val path = Json.decodeFromString<JsonObject>(dependencyJson.get())
+            .getValue("packages")
+            .jsonArray
+            .first { element ->
+                element.jsonObject.getValue("name").jsonPrimitive.content == "rustls-platform-verifier-android"
+            }.jsonObject.getValue("manifest_path").jsonPrimitive.content
+
+        File(path)
+    }
+
+    return maven {
+        url = uri(File(manifestPath.parentFile, "maven").path)
+        metadataSources.artifact()
+    }
+}
+
+dependencies {
+    // `rustls-platform-verifier` is a Rust crate, but it also has a Kotlin component.
+    implementation(libs.rustls.platform.verifier)
+}
+```
+
+`libs.version.toml`:
+```toml
+# We always use the latest release because `cargo` keeps it in sync with the associated Rust crate's version.
+rustls-platform-verifier = { group = "rustls", name = "rustls-platform-verifier", version = "latest.release" }
+```
+</details>
 
 #### Proguard
 
