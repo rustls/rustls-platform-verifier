@@ -225,11 +225,13 @@ impl Default for Verifier {
 }
 
 fn map_webpki_errors(err: TlsError) -> TlsError {
-    if let TlsError::InvalidCertificate(CertificateError::InvalidPurpose) = &err {
-        return TlsError::InvalidCertificate(CertificateError::Other(OtherError(Arc::new(
-            super::EkuError,
-        ))));
+    match &err {
+        TlsError::InvalidCertificate(CertificateError::InvalidPurpose)
+        | TlsError::InvalidCertificate(CertificateError::InvalidPurposeContext { .. }) => {
+            TlsError::InvalidCertificate(CertificateError::Other(OtherError(Arc::new(
+                super::EkuError,
+            ))))
+        }
+        _ => err,
     }
-
-    err
 }
