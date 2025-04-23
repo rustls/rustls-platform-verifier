@@ -3,5 +3,4 @@ members = [
     "android-release-support",
     "rustls-platform-verifier",
 ]
-
 resolver = "2"
