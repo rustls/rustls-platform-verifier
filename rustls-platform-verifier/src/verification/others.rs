@@ -208,10 +208,13 @@ impl ServerCertVerifier for Verifier {
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        match self.get_or_init_verifier() {
-            Ok(v) => v.supported_verify_schemes(),
-            Err(_) => Vec::default(),
-        }
+        // XXX: Don't go through `self.verifier` here: It introduces extra failure
+        // cases and is strictly unneeded because `get_provider` is the same provider and
+        // set of algorithms passed into the wrapped `WebPkiServerVerifier`. Given this,
+        // the list of schemes are identical.
+        self.get_provider()
+            .signature_verification_algorithms
+            .supported_schemes()
     }
 }
 
