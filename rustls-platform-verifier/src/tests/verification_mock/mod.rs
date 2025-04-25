@@ -108,7 +108,7 @@ pub(super) fn verification_without_mock_root() {
     .unwrap();
 
     #[cfg(not(target_os = "freebsd"))]
-    let verifier = Verifier::new(crypto_provider);
+    let verifier = Verifier::new(crypto_provider).unwrap();
 
     let server_name = pki_types::ServerName::try_from(EXAMPLE_COM).unwrap();
     let end_entity = pki_types::CertificateDer::from(ROOT1_INT1_EXAMPLE_COM_GOOD);
