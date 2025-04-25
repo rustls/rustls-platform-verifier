@@ -31,63 +31,10 @@ mod tests;
 #[cfg_attr(feature = "ffi-testing", allow(unused_imports))]
 pub use tests::ffi::*;
 
-/// Creates and returns a `rustls` configuration that verifies TLS
-/// certificates in the best way for the underlying OS platform, using
-/// safe defaults for the `rustls` configuration.
-///
-/// # Example
-///
-/// This example shows how to use the custom verifier with the `reqwest` crate:
-/// ```ignore
-/// # use reqwest::ClientBuilder;
-/// #[tokio::main]
-/// use rustls_platform_verifier::ConfigVerifierExt;
-///
-/// async fn main() {
-///     let client = ClientBuilder::new()
-///         .use_preconfigured_tls(ClientConfig::with_platform_verifier())
-///         .build()
-///         .expect("nothing should fail");
-///
-///     let _response = client.get("https://example.com").send().await;
-/// }
-/// ```
-///
-/// **Important:** You must ensure that your `reqwest` version is using the same Rustls
-/// version as this crate or it will panic when downcasting the `&dyn Any` verifier.
-///
-/// If you require more control over the rustls [`ClientConfig`], you can import the
-/// [`BuilderVerifierExt`] trait and call `.with_platform_verifier()` on the [`ConfigBuilder`].
-///
-/// Refer to the crate level documentation to see what platforms
-/// are currently supported.
-#[deprecated(since = "0.4.0", note = "use the `ConfigVerifierExt` instead")]
-pub fn tls_config() -> ClientConfig {
-    ClientConfig::with_platform_verifier()
-}
-
-/// Attempts to construct a `rustls` configuration that verifies TLS certificates in the best way
-/// for the underlying OS platform, using the provided
-/// [`CryptoProvider`][rustls::crypto::CryptoProvider].
-///
-/// See [`tls_config`] for further documentation.
-///
-/// # Errors
-///
-/// Propagates any error returned by [`rustls::ConfigBuilder::with_safe_default_protocol_versions`].
-#[deprecated(since = "0.4.0", note = "use the `BuilderVerifierExt` instead")]
-pub fn tls_config_with_provider(
-    provider: Arc<rustls::crypto::CryptoProvider>,
-) -> Result<ClientConfig, rustls::Error> {
-    Ok(ClientConfig::builder_with_provider(provider)
-        .with_safe_default_protocol_versions()?
-        .with_platform_verifier()
-        .with_no_client_auth())
-}
-
 /// Exposed for debugging certificate issues with standalone tools.
 ///
-/// This is not intended for production use, you should use [tls_config] instead.
+/// This is not intended for production use, you should use [`BuilderVerifierExt`] or
+/// [`ConfigVerifierExt`] instead.
 #[cfg(feature = "dbg")]
 pub fn verifier_for_dbg(
     root: CertificateDer<'static>,
