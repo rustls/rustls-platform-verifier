@@ -138,7 +138,7 @@ fn real_world_test<E: std::error::Error>(test_case: &TestCase<E>) {
     .unwrap();
 
     #[cfg(not(target_os = "freebsd"))]
-    let verifier = Verifier::new(crypto_provider);
+    let verifier = Verifier::new(crypto_provider).unwrap();
 
     let mut chain = test_case
         .chain
