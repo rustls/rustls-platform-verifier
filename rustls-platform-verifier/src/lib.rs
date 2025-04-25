@@ -2,8 +2,11 @@
 #![doc = include_str!("../README.md")]
 #![warn(missing_docs)]
 
-use rustls::{client::WantsClientCert, ClientConfig, ConfigBuilder, WantsVerifier};
 use std::sync::Arc;
+
+#[cfg(feature = "dbg")]
+use rustls::pki_types::CertificateDer;
+use rustls::{client::WantsClientCert, ClientConfig, ConfigBuilder, WantsVerifier};
 
 mod verification;
 pub use verification::Verifier;
@@ -84,7 +87,9 @@ pub fn tls_config_with_provider(
 ///
 /// This is not intended for production use, you should use [tls_config] instead.
 #[cfg(feature = "dbg")]
-pub fn verifier_for_dbg(root: &[u8]) -> Arc<dyn rustls::client::danger::ServerCertVerifier> {
+pub fn verifier_for_dbg(
+    root: CertificateDer<'static>,
+) -> Arc<dyn rustls::client::danger::ServerCertVerifier> {
     Arc::new(Verifier::new_with_fake_root(root))
 }
 

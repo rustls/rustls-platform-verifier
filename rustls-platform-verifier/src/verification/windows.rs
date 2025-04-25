@@ -486,7 +486,7 @@ fn call_with_last_error<T, F: FnMut() -> Option<T>>(mut call: F) -> Result<T, Tl
 pub struct Verifier {
     /// Testing only: The root CA certificate to trust.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-    test_only_root_ca_override: Option<Vec<u8>>,
+    test_only_root_ca_override: Option<pki_types::CertificateDer<'static>>,
     pub(super) crypto_provider: OnceCell<Arc<CryptoProvider>>,
     /// Extra trust anchors to add to the verifier above and beyond those provided by
     /// the system-provided trust stores.
@@ -529,9 +529,9 @@ impl Verifier {
 
     /// Creates a test-only TLS certificate verifier which trusts our fake root CA cert.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-    pub(crate) fn new_with_fake_root(root: &[u8]) -> Self {
+    pub(crate) fn new_with_fake_root(root: pki_types::CertificateDer<'static>) -> Self {
         Self {
-            test_only_root_ca_override: Some(root.into()),
+            test_only_root_ca_override: Some(root),
             crypto_provider: OnceCell::new(),
             extra_roots: None,
         }

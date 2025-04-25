@@ -80,7 +80,8 @@ macro_rules! no_error {
     };
 }
 
-const ROOT1: &[u8] = include_bytes!("root1.crt");
+const ROOT1: pki_types::CertificateDer<'static> =
+    pki_types::CertificateDer::from_slice(include_bytes!("root1.crt"));
 const ROOT1_INT1: &[u8] = include_bytes!("root1-int1.crt");
 const ROOT1_INT1_EXAMPLE_COM_GOOD: &[u8] = include_bytes!("root1-int1-ee_example.com-good.crt");
 const ROOT1_INT1_LOCALHOST_IPV4_GOOD: &[u8] = include_bytes!("root1-int1-ee_127.0.0.1-good.crt");
@@ -340,7 +341,7 @@ fn test_with_mock_root<E: std::error::Error + PartialEq + 'static>(
     let verifier = match root_src {
         Roots::OnlyExtra => Verifier::new_with_fake_root(ROOT1), // TODO: time
         #[cfg(not(target_os = "android"))]
-        Roots::ExtraAndPlatform => Verifier::new_with_extra_roots([ROOT1.into()]).unwrap(),
+        Roots::ExtraAndPlatform => Verifier::new_with_extra_roots([ROOT1]).unwrap(),
     };
     let mut chain = test_case
         .chain

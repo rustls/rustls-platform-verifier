@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use super::log_server_cert;
-use crate::verification::invalid_certificate;
 use core_foundation::date::CFDate;
 use core_foundation_sys::date::kCFAbsoluteTimeIntervalSince1970;
 use once_cell::sync::OnceCell;
@@ -15,6 +13,9 @@ use security_framework::{
     certificate::SecCertificate, policy::SecPolicy, secure_transport::SslProtocolSide,
     trust::SecTrust,
 };
+
+use super::log_server_cert;
+use crate::verification::invalid_certificate;
 
 mod errors {
     pub(super) use security_framework_sys::base::{
@@ -92,10 +93,10 @@ impl Verifier {
 
     /// Creates a test-only TLS certificate verifier which trusts our fake root CA cert.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-    pub(crate) fn new_with_fake_root(root: &[u8]) -> Self {
+    pub(crate) fn new_with_fake_root(root: pki_types::CertificateDer<'static>) -> Self {
         Self {
             extra_roots: Vec::new(),
-            test_only_root_ca_override: Some(SecCertificate::from_der(root).unwrap()),
+            test_only_root_ca_override: Some(SecCertificate::from_der(root.as_ref()).unwrap()),
             crypto_provider: OnceCell::new(),
         }
     }

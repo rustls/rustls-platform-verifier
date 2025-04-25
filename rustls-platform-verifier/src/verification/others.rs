@@ -2,7 +2,6 @@ use super::log_server_cert;
 use once_cell::sync::OnceCell;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::client::WebPkiServerVerifier;
-use rustls::pki_types;
 use rustls::{
     crypto::CryptoProvider, CertificateError, DigitallySignedStruct, Error as TlsError, OtherError,
     SignatureScheme,
@@ -28,7 +27,7 @@ pub struct Verifier {
 
     /// Testing only: an additional root CA certificate to trust.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-    test_only_root_ca_override: Option<Vec<u8>>,
+    test_only_root_ca_override: Option<pki_types::CertificateDer<'static>>,
 
     pub(super) crypto_provider: OnceCell<Arc<CryptoProvider>>,
 }
@@ -73,11 +72,11 @@ impl Verifier {
 
     /// Creates a test-only TLS certificate verifier which trusts our fake root CA cert.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-    pub(crate) fn new_with_fake_root(root: &[u8]) -> Self {
+    pub(crate) fn new_with_fake_root(root: pki_types::CertificateDer<'static>) -> Self {
         Self {
             inner: OnceCell::new(),
             extra_roots: Vec::new().into(),
-            test_only_root_ca_override: Some(root.into()),
+            test_only_root_ca_override: Some(root),
             crypto_provider: OnceCell::new(),
         }
     }
