@@ -5,6 +5,8 @@
 use std::sync::Arc;
 
 #[cfg(feature = "dbg")]
+use rustls::crypto::CryptoProvider;
+#[cfg(feature = "dbg")]
 use rustls::pki_types::CertificateDer;
 use rustls::{client::WantsClientCert, ClientConfig, ConfigBuilder, WantsVerifier};
 
@@ -89,8 +91,9 @@ pub fn tls_config_with_provider(
 #[cfg(feature = "dbg")]
 pub fn verifier_for_dbg(
     root: CertificateDer<'static>,
+    crypto_provider: Arc<CryptoProvider>,
 ) -> Arc<dyn rustls::client::danger::ServerCertVerifier> {
-    Arc::new(Verifier::new_with_fake_root(root))
+    Arc::new(Verifier::new_with_fake_root(root, crypto_provider))
 }
 
 /// Extension trait to help configure [`ClientConfig`]s with the platform verifier.
@@ -111,7 +114,7 @@ impl BuilderVerifierExt for ConfigBuilder<ClientConfig, WantsVerifier> {
     fn with_platform_verifier(self) -> ConfigBuilder<ClientConfig, WantsClientCert> {
         let provider = self.crypto_provider().clone();
         self.dangerous()
-            .with_custom_certificate_verifier(Arc::new(Verifier::new().with_provider(provider)))
+            .with_custom_certificate_verifier(Arc::new(Verifier::new(provider)))
     }
 }
 
