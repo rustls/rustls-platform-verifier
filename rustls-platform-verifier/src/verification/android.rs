@@ -46,7 +46,7 @@ const AUTH_TYPE: &str = "RSA";
 pub struct Verifier {
     /// Testing only: The root CA certificate to trust.
     #[cfg(any(test, feature = "ffi-testing"))]
-    test_only_root_ca_override: Option<Vec<u8>>,
+    test_only_root_ca_override: Option<pki_types::CertificateDer<'static>>,
     pub(super) crypto_provider: OnceCell<Arc<CryptoProvider>>,
 }
 
@@ -85,9 +85,9 @@ impl Verifier {
 
     /// Creates a test-only TLS certificate verifier which trusts our fake root CA cert.
     #[cfg(any(test, feature = "ffi-testing"))]
-    pub(crate) fn new_with_fake_root(root: &[u8]) -> Self {
+    pub(crate) fn new_with_fake_root(root: pki_types::CertificateDer<'static>) -> Self {
         Self {
-            test_only_root_ca_override: Some(root.into()),
+            test_only_root_ca_override: Some(root),
             crypto_provider: OnceCell::new(),
         }
     }
