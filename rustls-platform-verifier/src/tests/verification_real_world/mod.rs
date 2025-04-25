@@ -36,6 +36,7 @@
 //! potentially poor performance.
 
 use rustls::client::danger::ServerCertVerifier;
+use rustls::crypto::CryptoProvider;
 use rustls::pki_types;
 #[cfg(not(any(target_vendor = "apple", windows)))]
 use rustls::pki_types::{DnsName, ServerName};
@@ -127,15 +128,19 @@ fn real_world_test<E: std::error::Error>(test_case: &TestCase<E>) {
         test_case.expected_result
     );
 
+    let crypto_provider = CryptoProvider::get_default().unwrap().clone();
+
     // On BSD systems openssl-probe fails to find the system CA bundle,
     // so we must provide extra roots from webpki-root-cert.
     #[cfg(target_os = "freebsd")]
-    let verifier =
-        Verifier::new_with_extra_roots(webpki_root_certs::TLS_SERVER_ROOT_CERTS.iter().cloned())
-            .unwrap();
+    let verifier = Verifier::new_with_extra_roots(
+        webpki_root_certs::TLS_SERVER_ROOT_CERTS.iter().cloned(),
+        crypto_provider,
+    )
+    .unwrap();
 
     #[cfg(not(target_os = "freebsd"))]
-    let verifier = Verifier::new();
+    let verifier = Verifier::new(crypto_provider);
 
     let mut chain = test_case
         .chain
