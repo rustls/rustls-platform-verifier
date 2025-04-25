@@ -234,7 +234,7 @@ impl Verifier {
             })
             // Fallback to an error containing the description and specific error code so that
             // the exact error cause can be looked up easily.
-            .unwrap_or_else(|_| invalid_certificate(format!("{}: {}", trust_error, err_code)));
+            .unwrap_or_else(|_| invalid_certificate(format!("{trust_error}: {err_code}")));
 
         Err(err)
     }

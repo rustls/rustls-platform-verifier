@@ -235,8 +235,7 @@ impl Verifier {
                 }
             }
             Err(e) => Err(TlsError::General(format!(
-                "failed to call native verifier: {:?}",
-                e
+                "failed to call native verifier: {e:?}",
             ))),
         }
     }
