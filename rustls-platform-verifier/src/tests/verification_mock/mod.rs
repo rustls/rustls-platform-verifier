@@ -34,7 +34,7 @@ use rustls::pki_types::{DnsName, ServerName};
 use rustls::{CertificateError, Error as TlsError, OtherError};
 
 use super::TestCase;
-use crate::tests::{assert_cert_error_eq, ensure_global_state, verification_time};
+use crate::tests::{assert_cert_error_eq, test_provider, verification_time};
 use crate::verification::{EkuError, Verifier};
 
 macro_rules! mock_root_test_cases {
@@ -94,18 +94,21 @@ const LOCALHOST_IPV6: &str = "::1";
 #[cfg(any(test, feature = "ffi-testing"))]
 #[cfg_attr(feature = "ffi-testing", allow(dead_code))]
 pub(super) fn verification_without_mock_root() {
-    ensure_global_state();
+    let crypto_provider = test_provider();
+
     // Since Rustls 0.22 constructing a webpki verifier (like the one backing Verifier on unix
     // systems) without any roots produces `OtherError(NoRootAnchors)` - since our FreeBSD CI
     // runner fails to find any roots with openssl-probe we need to provide webpki-root-certs here
     // or the test will fail with the `OtherError` instead of the expected `CertificateError`.
     #[cfg(target_os = "freebsd")]
-    let verifier =
-        Verifier::new_with_extra_roots(webpki_root_certs::TLS_SERVER_ROOT_CERTS.iter().cloned())
-            .unwrap();
+    let verifier = Verifier::new_with_extra_roots(
+        webpki_root_certs::TLS_SERVER_ROOT_CERTS.iter().cloned(),
+        crypto_provider,
+    )
+    .unwrap();
 
     #[cfg(not(target_os = "freebsd"))]
-    let verifier = Verifier::new();
+    let verifier = Verifier::new(crypto_provider);
 
     let server_name = pki_types::ServerName::try_from(EXAMPLE_COM).unwrap();
     let end_entity = pki_types::CertificateDer::from(ROOT1_INT1_EXAMPLE_COM_GOOD);
@@ -335,13 +338,13 @@ fn test_with_mock_root<E: std::error::Error + PartialEq + 'static>(
     test_case: &TestCase<E>,
     root_src: Roots,
 ) {
-    ensure_global_state();
     log::info!("verifying {:?}", test_case.expected_result);
 
+    let provider = test_provider();
     let verifier = match root_src {
-        Roots::OnlyExtra => Verifier::new_with_fake_root(ROOT1), // TODO: time
+        Roots::OnlyExtra => Verifier::new_with_fake_root(ROOT1, provider), // TODO: time
         #[cfg(not(target_os = "android"))]
-        Roots::ExtraAndPlatform => Verifier::new_with_extra_roots([ROOT1]).unwrap(),
+        Roots::ExtraAndPlatform => Verifier::new_with_extra_roots([ROOT1], provider).unwrap(),
     };
     let mut chain = test_case
         .chain

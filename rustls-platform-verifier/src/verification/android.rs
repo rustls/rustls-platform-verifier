@@ -5,7 +5,6 @@ use jni::{
     strings::JavaStr,
     JNIEnv,
 };
-use once_cell::sync::OnceCell;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerifier};
 use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, CryptoProvider};
 use rustls::pki_types;
@@ -47,13 +46,7 @@ pub struct Verifier {
     /// Testing only: The root CA certificate to trust.
     #[cfg(any(test, feature = "ffi-testing"))]
     test_only_root_ca_override: Option<pki_types::CertificateDer<'static>>,
-    pub(super) crypto_provider: OnceCell<Arc<CryptoProvider>>,
-}
-
-impl Default for Verifier {
-    fn default() -> Self {
-        Self::new()
-    }
+    crypto_provider: Arc<CryptoProvider>,
 }
 
 #[cfg(any(test, feature = "ffi-testing"))]
@@ -71,24 +64,23 @@ impl Drop for Verifier {
 impl Verifier {
     /// Creates a new instance of a TLS certificate verifier that utilizes the
     /// Android certificate facilities.
-    ///
-    /// A [`CryptoProvider`] must be set with
-    /// [`set_provider`][Verifier::set_provider]/[`with_provider`][Verifier::with_provider] or
-    /// [`CryptoProvider::install_default`] before the verifier can be used.
-    pub fn new() -> Self {
+    pub fn new(crypto_provider: Arc<CryptoProvider>) -> Self {
         Self {
             #[cfg(any(test, feature = "ffi-testing"))]
             test_only_root_ca_override: None,
-            crypto_provider: OnceCell::new(),
+            crypto_provider,
         }
     }
 
     /// Creates a test-only TLS certificate verifier which trusts our fake root CA cert.
     #[cfg(any(test, feature = "ffi-testing"))]
-    pub(crate) fn new_with_fake_root(root: pki_types::CertificateDer<'static>) -> Self {
+    pub(crate) fn new_with_fake_root(
+        root: pki_types::CertificateDer<'static>,
+        crypto_provider: Arc<CryptoProvider>,
+    ) -> Self {
         Self {
             test_only_root_ca_override: Some(root),
-            crypto_provider: OnceCell::new(),
+            crypto_provider,
         }
     }
 
@@ -314,7 +306,7 @@ impl ServerCertVerifier for Verifier {
             message,
             cert,
             dss,
-            &self.get_provider().signature_verification_algorithms,
+            &self.crypto_provider.signature_verification_algorithms,
         )
     }
 
@@ -328,12 +320,12 @@ impl ServerCertVerifier for Verifier {
             message,
             cert,
             dss,
-            &self.get_provider().signature_verification_algorithms,
+            &self.crypto_provider.signature_verification_algorithms,
         )
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        self.get_provider()
+        self.crypto_provider
             .signature_verification_algorithms
             .supported_schemes()
     }

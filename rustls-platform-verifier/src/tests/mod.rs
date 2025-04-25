@@ -1,14 +1,18 @@
 #[cfg(feature = "ffi-testing")]
 pub mod ffi;
 
-use std::error::Error as StdError;
 use std::time::Duration;
+use std::{error::Error as StdError, sync::Arc};
 
 mod verification_real_world;
 
 mod verification_mock;
 
-use rustls::{pki_types, CertificateError, Error as TlsError, Error::InvalidCertificate};
+use rustls::{
+    crypto::CryptoProvider,
+    pki_types, CertificateError,
+    Error::{self as TlsError, InvalidCertificate},
+};
 
 struct TestCase<'a, E: StdError> {
     /// The name of the server we're connecting to.
@@ -62,6 +66,6 @@ pub(crate) fn verification_time() -> pki_types::UnixTime {
     pki_types::UnixTime::since_unix_epoch(Duration::from_secs(1_748_633_220))
 }
 
-fn ensure_global_state() {
-    let _ = rustls::crypto::ring::default_provider().install_default();
+fn test_provider() -> Arc<CryptoProvider> {
+    Arc::new(rustls::crypto::ring::default_provider())
 }
