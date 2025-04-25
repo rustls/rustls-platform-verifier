@@ -52,16 +52,22 @@ pub trait BuilderVerifierExt {
     /// use rustls_platform_verifier::BuilderVerifierExt;
     /// let config = ClientConfig::builder()
     ///     .with_platform_verifier()
+    ///     .unwrap()
     ///     .with_no_client_auth();
     /// ```
-    fn with_platform_verifier(self) -> ConfigBuilder<ClientConfig, WantsClientCert>;
+    fn with_platform_verifier(
+        self,
+    ) -> Result<ConfigBuilder<ClientConfig, WantsClientCert>, rustls::Error>;
 }
 
 impl BuilderVerifierExt for ConfigBuilder<ClientConfig, WantsVerifier> {
-    fn with_platform_verifier(self) -> ConfigBuilder<ClientConfig, WantsClientCert> {
-        let provider = self.crypto_provider().clone();
-        self.dangerous()
-            .with_custom_certificate_verifier(Arc::new(Verifier::new(provider)))
+    fn with_platform_verifier(
+        self,
+    ) -> Result<ConfigBuilder<ClientConfig, WantsClientCert>, rustls::Error> {
+        let verifier = Verifier::new(self.crypto_provider().clone())?;
+        Ok(self
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(verifier)))
     }
 }
 
@@ -74,13 +80,13 @@ pub trait ConfigVerifierExt {
     /// use rustls_platform_verifier::ConfigVerifierExt;
     /// let config = ClientConfig::with_platform_verifier();
     /// ```
-    fn with_platform_verifier() -> ClientConfig;
+    fn with_platform_verifier() -> Result<ClientConfig, rustls::Error>;
 }
 
 impl ConfigVerifierExt for ClientConfig {
-    fn with_platform_verifier() -> ClientConfig {
-        ClientConfig::builder()
-            .with_platform_verifier()
-            .with_no_client_auth()
+    fn with_platform_verifier() -> Result<ClientConfig, rustls::Error> {
+        Ok(ClientConfig::builder()
+            .with_platform_verifier()?
+            .with_no_client_auth())
     }
 }

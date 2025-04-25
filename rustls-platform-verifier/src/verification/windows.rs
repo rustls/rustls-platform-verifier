@@ -497,13 +497,13 @@ pub struct Verifier {
 impl Verifier {
     /// Creates a new instance of a TLS certificate verifier that utilizes the
     /// Windows certificate facilities.
-    pub fn new(crypto_provider: Arc<CryptoProvider>) -> Self {
-        Self {
+    pub fn new(crypto_provider: Arc<CryptoProvider>) -> Result<Self, TlsError> {
+        Ok(Self {
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
             crypto_provider,
             extra_roots: None,
-        }
+        })
     }
 
     /// Creates a new instance of a TLS certificate verifier that utilizes the

@@ -55,13 +55,13 @@ pub struct Verifier {
 impl Verifier {
     /// Creates a new instance of a TLS certificate verifier that utilizes the Apple certificate
     /// facilities.
-    pub fn new(crypto_provider: Arc<CryptoProvider>) -> Self {
-        Self {
+    pub fn new(crypto_provider: Arc<CryptoProvider>) -> Result<Self, TlsError> {
+        Ok(Self {
             extra_roots: Vec::new(),
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
             crypto_provider,
-        }
+        })
     }
 
     /// Creates a new instance of a TLS certificate verifier that utilizes the Apple certificate

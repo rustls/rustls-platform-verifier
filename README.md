@@ -106,6 +106,7 @@ let config = ClientConfig::builder_with_provider(arc_crypto_provider)
     .with_safe_default_protocol_versions()
     .unwrap()
     .with_platform_verifier()
+    .unwrap()
     .with_no_client_auth();
 ```
 
