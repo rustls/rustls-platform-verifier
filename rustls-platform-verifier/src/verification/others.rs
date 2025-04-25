@@ -29,23 +29,19 @@ pub struct Verifier {
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
     test_only_root_ca_override: Option<pki_types::CertificateDer<'static>>,
 
-    pub(super) crypto_provider: OnceCell<Arc<CryptoProvider>>,
+    crypto_provider: Arc<CryptoProvider>,
 }
 
 impl Verifier {
     /// Creates a new verifier whose certificate validation is provided by
     /// WebPKI, using root certificates provided by the platform.
-    ///
-    /// A [`CryptoProvider`] must be set with
-    /// [`set_provider`][Verifier::set_provider]/[`with_provider`][Verifier::with_provider] or
-    /// [`CryptoProvider::install_default`] before the verifier can be used.
-    pub fn new() -> Self {
+    pub fn new(crypto_provider: Arc<CryptoProvider>) -> Self {
         Self {
             inner: OnceCell::new(),
             extra_roots: Vec::new().into(),
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
-            crypto_provider: OnceCell::new(),
+            crypto_provider,
         }
     }
 
@@ -54,6 +50,7 @@ impl Verifier {
     /// the provided extra root certificates.
     pub fn new_with_extra_roots(
         roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
+        crypto_provider: Arc<CryptoProvider>,
     ) -> Result<Self, TlsError> {
         Ok(Self {
             inner: OnceCell::new(),
@@ -66,18 +63,21 @@ impl Verifier {
                 .into(),
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
-            crypto_provider: OnceCell::new(),
+            crypto_provider,
         })
     }
 
     /// Creates a test-only TLS certificate verifier which trusts our fake root CA cert.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-    pub(crate) fn new_with_fake_root(root: pki_types::CertificateDer<'static>) -> Self {
+    pub(crate) fn new_with_fake_root(
+        root: pki_types::CertificateDer<'static>,
+        crypto_provider: Arc<CryptoProvider>,
+    ) -> Self {
         Self {
             inner: OnceCell::new(),
             extra_roots: Vec::new().into(),
             test_only_root_ca_override: Some(root),
-            crypto_provider: OnceCell::new(),
+            crypto_provider,
         }
     }
 
@@ -102,7 +102,7 @@ impl Verifier {
                 }
                 return Ok(WebPkiServerVerifier::builder_with_provider(
                     root_store.into(),
-                    Arc::clone(self.get_provider()),
+                    self.crypto_provider.clone(),
                 )
                 .build()
                 .unwrap());
@@ -155,12 +155,9 @@ impl Verifier {
             );
         };
 
-        WebPkiServerVerifier::builder_with_provider(
-            root_store.into(),
-            Arc::clone(self.get_provider()),
-        )
-        .build()
-        .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))
+        WebPkiServerVerifier::builder_with_provider(root_store.into(), self.crypto_provider.clone())
+            .build()
+            .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))
     }
 }
 
@@ -211,15 +208,9 @@ impl ServerCertVerifier for Verifier {
         // cases and is strictly unneeded because `get_provider` is the same provider and
         // set of algorithms passed into the wrapped `WebPkiServerVerifier`. Given this,
         // the list of schemes are identical.
-        self.get_provider()
+        self.crypto_provider
             .signature_verification_algorithms
             .supported_schemes()
-    }
-}
-
-impl Default for Verifier {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

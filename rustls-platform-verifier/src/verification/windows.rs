@@ -18,21 +18,20 @@
 //! [Microsoft's Documentation]: <https://docs.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certgetcertificatechain>
 //! [Microsoft's Example]: <https://docs.microsoft.com/en-us/windows/win32/seccrypto/example-c-program-creating-a-certificate-chain>
 
-use super::{log_server_cert, ALLOWED_EKUS};
-use once_cell::sync::OnceCell;
-use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerifier};
-use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, CryptoProvider};
-use rustls::pki_types;
-use rustls::{
-    CertificateError, DigitallySignedStruct, Error as TlsError, Error::InvalidCertificate,
-    SignatureScheme,
-};
 use std::{
     convert::TryInto,
     mem::{self, MaybeUninit},
     os::raw::c_void,
     ptr::{self, NonNull},
     sync::Arc,
+};
+
+use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerifier};
+use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, CryptoProvider};
+use rustls::pki_types;
+use rustls::{
+    CertificateError, DigitallySignedStruct, Error as TlsError, Error::InvalidCertificate,
+    SignatureScheme,
 };
 use windows_sys::Win32::{
     Foundation::{
@@ -54,6 +53,8 @@ use windows_sys::Win32::{
         CTL_USAGE, USAGE_MATCH_TYPE_AND, X509_ASN_ENCODING,
     },
 };
+
+use super::{log_server_cert, ALLOWED_EKUS};
 
 // The `windows-sys` definition for `CERT_CHAIN_PARA` does not take old OS versions
 // into account so we define it ourselves for better (hypothetical) OS backwards compat.
@@ -487,7 +488,7 @@ pub struct Verifier {
     /// Testing only: The root CA certificate to trust.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
     test_only_root_ca_override: Option<pki_types::CertificateDer<'static>>,
-    pub(super) crypto_provider: OnceCell<Arc<CryptoProvider>>,
+    crypto_provider: Arc<CryptoProvider>,
     /// Extra trust anchors to add to the verifier above and beyond those provided by
     /// the system-provided trust stores.
     extra_roots: Option<CertEngine>,
@@ -496,43 +497,39 @@ pub struct Verifier {
 impl Verifier {
     /// Creates a new instance of a TLS certificate verifier that utilizes the
     /// Windows certificate facilities.
-    ///
-    /// A [`CryptoProvider`] must be set with
-    /// [`set_provider`][Verifier::set_provider]/[`with_provider`][Verifier::with_provider] or
-    /// [`CryptoProvider::install_default`] before the verifier can be used.
-    pub fn new() -> Self {
+    pub fn new(crypto_provider: Arc<CryptoProvider>) -> Self {
         Self {
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
-            crypto_provider: OnceCell::new(),
+            crypto_provider,
             extra_roots: None,
         }
     }
 
     /// Creates a new instance of a TLS certificate verifier that utilizes the
     /// Windows certificate facilities and augmented by the provided extra root certificates.
-    ///
-    /// A [`CryptoProvider`] must be set with
-    /// [`set_provider`][Verifier::set_provider]/[`with_provider`][Verifier::with_provider] or
-    /// [`CryptoProvider::install_default`] before the verifier can be used.
     pub fn new_with_extra_roots(
         roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
+        crypto_provider: Arc<CryptoProvider>,
     ) -> Result<Self, TlsError> {
         let cert_engine = CertEngine::new_with_extra_roots(roots)?;
         Ok(Self {
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
-            crypto_provider: OnceCell::new(),
+            crypto_provider,
             extra_roots: Some(cert_engine),
         })
     }
 
     /// Creates a test-only TLS certificate verifier which trusts our fake root CA cert.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-    pub(crate) fn new_with_fake_root(root: pki_types::CertificateDer<'static>) -> Self {
+    pub(crate) fn new_with_fake_root(
+        root: pki_types::CertificateDer<'static>,
+        crypto_provider: Arc<CryptoProvider>,
+    ) -> Self {
         Self {
             test_only_root_ca_override: Some(root),
-            crypto_provider: OnceCell::new(),
+            crypto_provider,
             extra_roots: None,
         }
     }
@@ -686,7 +683,7 @@ impl ServerCertVerifier for Verifier {
             message,
             cert,
             dss,
-            &self.get_provider().signature_verification_algorithms,
+            &self.crypto_provider.signature_verification_algorithms,
         )
     }
 
@@ -700,20 +697,14 @@ impl ServerCertVerifier for Verifier {
             message,
             cert,
             dss,
-            &self.get_provider().signature_verification_algorithms,
+            &self.crypto_provider.signature_verification_algorithms,
         )
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        self.get_provider()
+        self.crypto_provider
             .signature_verification_algorithms
             .supported_schemes()
-    }
-}
-
-impl Default for Verifier {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

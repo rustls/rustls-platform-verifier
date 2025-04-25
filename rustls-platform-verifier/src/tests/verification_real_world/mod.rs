@@ -42,7 +42,7 @@ use rustls::pki_types::{DnsName, ServerName};
 use rustls::{CertificateError, Error as TlsError};
 
 use super::TestCase;
-use crate::tests::{assert_cert_error_eq, ensure_global_state, verification_time};
+use crate::tests::{assert_cert_error_eq, test_provider, verification_time};
 use crate::Verifier;
 
 // This is the certificate chain presented by one server for
@@ -120,22 +120,25 @@ macro_rules! no_error {
 }
 
 fn real_world_test<E: std::error::Error>(test_case: &TestCase<E>) {
-    ensure_global_state();
     log::info!(
         "verifying ref ID {:?} expected {:?}",
         test_case.reference_id,
         test_case.expected_result
     );
 
+    let crypto_provider = test_provider();
+
     // On BSD systems openssl-probe fails to find the system CA bundle,
     // so we must provide extra roots from webpki-root-cert.
     #[cfg(target_os = "freebsd")]
-    let verifier =
-        Verifier::new_with_extra_roots(webpki_root_certs::TLS_SERVER_ROOT_CERTS.iter().cloned())
-            .unwrap();
+    let verifier = Verifier::new_with_extra_roots(
+        webpki_root_certs::TLS_SERVER_ROOT_CERTS.iter().cloned(),
+        crypto_provider,
+    )
+    .unwrap();
 
     #[cfg(not(target_os = "freebsd"))]
-    let verifier = Verifier::new();
+    let verifier = Verifier::new(crypto_provider);
 
     let mut chain = test_case
         .chain

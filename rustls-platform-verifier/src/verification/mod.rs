@@ -1,4 +1,4 @@
-use rustls::crypto::CryptoProvider;
+#[cfg(any(windows, target_vendor = "apple"))]
 use std::sync::Arc;
 
 #[cfg(all(
@@ -84,30 +84,3 @@ const ALLOWED_EKUS: &[windows_sys::core::PCSTR] =
     &[windows_sys::Win32::Security::Cryptography::szOID_PKIX_KP_SERVER_AUTH];
 #[cfg(target_os = "android")]
 pub const ALLOWED_EKUS: &[&str] = &["1.3.6.1.5.5.7.3.1"];
-
-impl Verifier {
-    /// Chainable setter to configure the [`CryptoProvider`] for this `Verifier`.
-    ///
-    /// This will be used instead of the rustls process-default `CryptoProvider`, even if one has
-    /// been installed.
-    pub fn with_provider(mut self, crypto_provider: Arc<CryptoProvider>) -> Self {
-        self.set_provider(crypto_provider);
-        self
-    }
-
-    /// Configures the [`CryptoProvider`] for this `Verifier`.
-    ///
-    /// This will be used instead of the rustls process-default `CryptoProvider`, even if one has
-    /// been installed.
-    pub fn set_provider(&mut self, crypto_provider: Arc<CryptoProvider>) {
-        self.crypto_provider = crypto_provider.into();
-    }
-
-    fn get_provider(&self) -> &Arc<CryptoProvider> {
-        self.crypto_provider.get_or_init(|| {
-            CryptoProvider::get_default()
-                .expect("rustls default CryptoProvider not set")
-                .clone()
-        })
-    }
-}
