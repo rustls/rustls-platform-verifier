@@ -88,7 +88,7 @@ pub const ALLOWED_EKUS: &[&str] = &["1.3.6.1.5.5.7.3.1"];
 impl Verifier {
     /// Chainable setter to configure the [`CryptoProvider`] for this `Verifier`.
     ///
-    /// This will be used instead of the rustls processs-default `CryptoProvider`, even if one has
+    /// This will be used instead of the rustls process-default `CryptoProvider`, even if one has
     /// been installed.
     pub fn with_provider(mut self, crypto_provider: Arc<CryptoProvider>) -> Self {
         self.set_provider(crypto_provider);
@@ -97,7 +97,7 @@ impl Verifier {
 
     /// Configures the [`CryptoProvider`] for this `Verifier`.
     ///
-    /// This will be used instead of the rustls processs-default `CryptoProvider`, even if one has
+    /// This will be used instead of the rustls process-default `CryptoProvider`, even if one has
     /// been installed.
     pub fn set_provider(&mut self, crypto_provider: Arc<CryptoProvider>) {
         self.crypto_provider = crypto_provider.into();
