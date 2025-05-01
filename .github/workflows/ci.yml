@@ -5,6 +5,7 @@ on:
   merge_group:
   schedule:
     - cron: '0 18 * * *'
+  workflow_dispatch:
 
 name: CI
 permissions:
