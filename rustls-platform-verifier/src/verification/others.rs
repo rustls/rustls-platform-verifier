@@ -78,18 +78,10 @@ impl Verifier {
             }
         }
 
-        let mut num_extra_roots = 0;
-        let (added, ignored) =
-            root_store.add_parsable_certificates(extra_roots.into_iter().inspect(|_| {
-                num_extra_roots += 1;
-            }));
-
-        if num_extra_roots > 0 {
-            if ignored > 0 {
-                log::warn!("{ignored} extra CA root certificates were ignored due to errors");
-            } else {
-                log::debug!("Loaded {added} CA root certificates from extra roots");
-            }
+        // While we ignore invalid certificates from the system, we forward errors from
+        // parsing the extra roots to the caller.
+        for cert in extra_roots {
+            root_store.add(cert)?;
         }
 
         #[cfg(all(
