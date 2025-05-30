@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
-use super::log_server_cert;
-use crate::verification::invalid_certificate;
 use core_foundation::date::CFDate;
 use core_foundation_sys::date::kCFAbsoluteTimeIntervalSince1970;
-use once_cell::sync::OnceCell;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerifier};
 use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, CryptoProvider};
 use rustls::pki_types;
@@ -15,6 +12,9 @@ use security_framework::{
     certificate::SecCertificate, policy::SecPolicy, secure_transport::SslProtocolSide,
     trust::SecTrust,
 };
+
+use super::log_server_cert;
+use crate::verification::invalid_certificate;
 
 mod errors {
     pub(super) use security_framework_sys::base::{
@@ -49,23 +49,19 @@ pub struct Verifier {
     /// Testing only: The root CA certificate to trust.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
     test_only_root_ca_override: Option<SecCertificate>,
-    pub(super) crypto_provider: OnceCell<Arc<CryptoProvider>>,
+    crypto_provider: Arc<CryptoProvider>,
 }
 
 impl Verifier {
     /// Creates a new instance of a TLS certificate verifier that utilizes the Apple certificate
     /// facilities.
-    ///
-    /// A [`CryptoProvider`] must be set with
-    /// [`set_provider`][Verifier::set_provider]/[`with_provider`][Verifier::with_provider] or
-    /// [`CryptoProvider::install_default`] before the verifier can be used.
-    pub fn new() -> Self {
-        Self {
+    pub fn new(crypto_provider: Arc<CryptoProvider>) -> Result<Self, TlsError> {
+        Ok(Self {
             extra_roots: Vec::new(),
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
-            crypto_provider: OnceCell::new(),
-        }
+            crypto_provider,
+        })
     }
 
     /// Creates a new instance of a TLS certificate verifier that utilizes the Apple certificate
@@ -74,6 +70,7 @@ impl Verifier {
     /// See [Verifier::new] for the external requirements the verifier needs.
     pub fn new_with_extra_roots(
         roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
+        crypto_provider: Arc<CryptoProvider>,
     ) -> Result<Self, TlsError> {
         let extra_roots = roots
             .into_iter()
@@ -86,17 +83,20 @@ impl Verifier {
             extra_roots,
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
-            crypto_provider: OnceCell::new(),
+            crypto_provider,
         })
     }
 
     /// Creates a test-only TLS certificate verifier which trusts our fake root CA cert.
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-    pub(crate) fn new_with_fake_root(root: &[u8]) -> Self {
+    pub(crate) fn new_with_fake_root(
+        root: pki_types::CertificateDer<'static>,
+        crypto_provider: Arc<CryptoProvider>,
+    ) -> Self {
         Self {
             extra_roots: Vec::new(),
-            test_only_root_ca_override: Some(SecCertificate::from_der(root).unwrap()),
-            crypto_provider: OnceCell::new(),
+            test_only_root_ca_override: Some(SecCertificate::from_der(root.as_ref()).unwrap()),
+            crypto_provider,
         }
     }
 
@@ -282,7 +282,7 @@ impl ServerCertVerifier for Verifier {
             message,
             cert,
             dss,
-            &self.get_provider().signature_verification_algorithms,
+            &self.crypto_provider.signature_verification_algorithms,
         )
     }
 
@@ -296,19 +296,13 @@ impl ServerCertVerifier for Verifier {
             message,
             cert,
             dss,
-            &self.get_provider().signature_verification_algorithms,
+            &self.crypto_provider.signature_verification_algorithms,
         )
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        self.get_provider()
+        self.crypto_provider
             .signature_verification_algorithms
             .supported_schemes()
-    }
-}
-
-impl Default for Verifier {
-    fn default() -> Self {
-        Self::new()
     }
 }
