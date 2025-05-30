@@ -47,11 +47,11 @@ android_logger = { version = "0.15", optional = true } # Only used during testin
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 webpki = { package = "rustls-webpki", version = "0.103", default-features = false }
-webpki-root-certs = "0.26"
+webpki-root-certs = "1"
 
 # BSD targets require webpki-roots-certs for the real-world verification tests.
 [target.'cfg(target_os = "freebsd")'.dev-dependencies]
-webpki-root-certs = "0.26"
+webpki-root-certs = "1"
 
 [target.'cfg(any(target_vendor = "apple"))'.dependencies]
 core-foundation = "0.10"
@@ -64,7 +64,7 @@ windows-sys = { version = ">=0.52.0, <0.60.0", default-features = false, feature
 
 [dev-dependencies]
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
-webpki-root-certs = "0.26"
+webpki-root-certs = "1"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]
