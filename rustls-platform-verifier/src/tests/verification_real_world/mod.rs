@@ -206,7 +206,7 @@ real_world_test_cases! {
         #[cfg(not(any(target_vendor = "apple", windows)))]
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForNameContext {
             expected: ServerName::DnsName(DnsName::try_from("agilebits.com").unwrap()),
-            presented: vec!["DnsName(\"*.1password.com\")".to_owned(), "DnsName(\"1password.com\")".to_owned()],
+            presented: vec!["DnsName(\"1password.com\")".to_owned(), "DnsName(\"*.1password.com\")".to_owned()],
         })),
         #[cfg(any(target_vendor = "apple", windows))]
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),

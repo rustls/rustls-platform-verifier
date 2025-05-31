@@ -64,6 +64,7 @@ windows-sys = { version = ">=0.52.0, <0.60.0", default-features = false, feature
 
 [dev-dependencies]
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
+webpki-root-certs = "0.26"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]
