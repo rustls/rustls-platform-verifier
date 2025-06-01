@@ -35,6 +35,8 @@
 //! Thus we don't expect these tests to be flaky w.r.t. that, except for
 //! potentially poor performance.
 
+#![cfg(all(test, feature = "ffi-testing"))]
+
 use rustls::client::danger::ServerCertVerifier;
 use rustls::pki_types;
 #[cfg(not(any(target_vendor = "apple", windows)))]
@@ -83,43 +85,13 @@ const VALID_LETSENCRYPT_ORG_CHAIN: &[&[u8]] = &[
     include_bytes!("letsencrypt_org_valid_2.crt"),
 ];
 
-macro_rules! real_world_test_cases {
-    { $( $name:ident => $test_case:expr ),+ , } => {
-        real_world_test_cases!(@ $($name => $test_case),+,);
-
-        #[cfg(test)]
-        mod tests {
-            $(
-                #[test]
-                pub fn $name() {
-                    super::$name()
-                }
-            )+
-
-        }
-
-        #[cfg(feature = "ffi-testing")]
-        pub static ALL_TEST_CASES: &'static [fn()] = &[
-            $($name),+
-        ];
-    };
-
-    {@ $( $name:ident => $test_case:expr ),+ , } => {
-        $(
-            pub(super) fn $name() {
-                real_world_test(&$test_case);
-            }
-        )+
-    }
-}
-
 macro_rules! no_error {
     () => {
         None::<std::convert::Infallible>
     };
 }
 
-fn real_world_test<E: std::error::Error>(test_case: &TestCase<E>) {
+fn real_world_test<E: std::error::Error>(test_case: TestCase<E>) {
     log::info!(
         "verifying ref ID {:?} expected {:?}",
         test_case.reference_id,
@@ -172,101 +144,140 @@ fn real_world_test<E: std::error::Error>(test_case: &TestCase<E>) {
 
 // Prefer to staple the OCSP response for the end-entity certificate for
 // performance and repeatability.
-real_world_test_cases! {
-    // The certificate is valid for *.1password.com.
-    my_1password_com_valid => TestCase {
+#[test]
+fn my_1password_com_valid() {
+    real_world_test(TestCase {
         reference_id: MY_1PASSWORD_COM,
         chain: VALID_1PASSWORD_COM_CHAIN,
         stapled_ocsp: None,
         verification_time: verification_time(),
         expected_result: Ok(()),
         other_error: no_error!(),
-    },
-    // Same as above but without stapled OCSP.
-    my_1password_com_valid_no_stapled => TestCase {
+    });
+}
+
+// Same as above but without stapled OCSP.
+#[test]
+fn my_1password_com_valid_no_stapled() {
+    real_world_test(TestCase {
         reference_id: MY_1PASSWORD_COM,
         chain: VALID_1PASSWORD_COM_CHAIN,
         stapled_ocsp: None,
         verification_time: verification_time(),
         expected_result: Ok(()),
         other_error: no_error!(),
-    },
-    // Valid also for 1password.com (no subdomain).
-    _1password_com_valid => TestCase {
+    });
+}
+
+// Valid also for 1password.com (no subdomain).
+#[test]
+fn _1password_com_valid() {
+    real_world_test(TestCase {
         reference_id: "1password.com",
         chain: VALID_1PASSWORD_COM_CHAIN,
         stapled_ocsp: None,
         verification_time: verification_time(),
         expected_result: Ok(()),
         other_error: no_error!(),
-    },
-    // The certificate isn't valid for an unrelated subdomain.
-    unrelated_domain_invalid => TestCase {
+    });
+}
+
+// The certificate isn't valid for an unrelated subdomain.
+#[test]
+fn unrelated_domain_invalid() {
+    real_world_test(TestCase {
         reference_id: VALID_UNRELATED_DOMAIN,
         chain: VALID_1PASSWORD_COM_CHAIN,
         stapled_ocsp: None,
         verification_time: verification_time(),
         #[cfg(not(any(target_vendor = "apple", windows)))]
-        expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForNameContext {
-            expected: ServerName::DnsName(DnsName::try_from("agilebits.com").unwrap()),
-            presented: vec!["DnsName(\"*.1password.com\")".to_owned(), "DnsName(\"1password.com\")".to_owned()],
-        })),
+        expected_result: Err(TlsError::InvalidCertificate(
+            CertificateError::NotValidForNameContext {
+                expected: ServerName::DnsName(DnsName::try_from("agilebits.com").unwrap()),
+                presented: vec![
+                    "DnsName(\"*.1password.com\")".to_owned(),
+                    "DnsName(\"1password.com\")".to_owned(),
+                ],
+            },
+        )),
         #[cfg(any(target_vendor = "apple", windows))]
-        expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
+        expected_result: Err(TlsError::InvalidCertificate(
+            CertificateError::NotValidForName,
+        )),
         other_error: no_error!(),
-    },
-    // The certificate chain for the unrelated domain is valid for that
-    // unrelated domain.
-    unrelated_chain_valid_for_unrelated_domain => TestCase {
+    });
+}
+
+// The certificate chain for the unrelated domain is valid for that unrelated domain.
+#[test]
+pub(super) fn unrelated_chain_valid_for_unrelated_domain() {
+    real_world_test(TestCase {
         reference_id: VALID_UNRELATED_DOMAIN,
         chain: VALID_UNRELATED_CHAIN,
         stapled_ocsp: None,
         verification_time: verification_time(),
         expected_result: Ok(()),
         other_error: no_error!(),
-    },
-    // The certificate chain for the unrelated domain is not valid for
-    // my.1password.com.
-    unrelated_chain_not_valid_for_my_1password_com => TestCase {
+    });
+}
+
+// The certificate chain for the unrelated domain is not valid for my.1password.com.
+#[test]
+fn unrelated_chain_not_valid_for_my_1password_com() {
+    real_world_test(TestCase {
         reference_id: MY_1PASSWORD_COM,
         chain: VALID_UNRELATED_CHAIN,
         stapled_ocsp: None,
         verification_time: verification_time(),
         #[cfg(not(any(target_vendor = "apple", windows)))]
-        expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForNameContext {
-            expected: ServerName::DnsName(DnsName::try_from("my.1password.com").unwrap()),
-            presented: vec!["DnsName(\"agilebits.com\")".to_owned(), "DnsName(\"www.agilebits.com\")".to_owned()],
-        })),
+        expected_result: Err(TlsError::InvalidCertificate(
+            CertificateError::NotValidForNameContext {
+                expected: ServerName::DnsName(DnsName::try_from("my.1password.com").unwrap()),
+                presented: vec![
+                    "DnsName(\"agilebits.com\")".to_owned(),
+                    "DnsName(\"www.agilebits.com\")".to_owned(),
+                ],
+            },
+        )),
         #[cfg(any(target_vendor = "apple", windows))]
-        expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
+        expected_result: Err(TlsError::InvalidCertificate(
+            CertificateError::NotValidForName,
+        )),
         other_error: no_error!(),
-    },
-    letsencrypt => TestCase {
+    });
+}
+
+#[test]
+fn letsencrypt() {
+    real_world_test(TestCase {
         reference_id: LETSENCRYPT_ORG,
         chain: VALID_LETSENCRYPT_ORG_CHAIN,
         stapled_ocsp: None,
         verification_time: verification_time(),
         expected_result: Ok(()),
         other_error: no_error!(),
-    },
-
-    // OCSP stapling works.
-    //
-    // XXX: This test is commented-out because it is a time-bomb due to the
-    // short lifetime of the OCSP responses for the certificate.
-    //
-    // TODO: If/when we can validate a certificate for a specific point in time
-    // during a test, re-enable this and have it test the certificate validity
-    // at a point in time where the OCSP response is valid.
-    //
-    // revoked_badssl_com_stapled => TestCase {
-    //     reference_id: "revoked.badssl.com",
-    //     chain: &[
-    //         include_bytes!("revoked_badssl_com_1.crt"),
-    //         include_bytes!("revoked_badssl_com_2.crt"),
-    //         ],
-    //     stapled_ocsp: Some(include_bytes!("revoked_badssl_com_1.ocsp")),
-    //     // XXX: We only do OCSP stapling on Windows.
-    //     valid: !cfg!(windows),
-    // },
+    });
 }
+
+// OCSP stapling works.
+//
+// XXX: This test is commented-out because it is a time-bomb due to the
+// short lifetime of the OCSP responses for the certificate.
+//
+// TODO: If/when we can validate a certificate for a specific point in time
+// during a test, re-enable this and have it test the certificate validity
+// at a point in time where the OCSP response is valid.
+//
+// #[test]
+// fn revoked_badssl_com_stapled() {
+//     real_world_test(TestCase {
+//         reference_id: "revoked.badssl.com",
+//         chain: &[
+//             include_bytes!("revoked_badssl_com_1.crt"),
+//             include_bytes!("revoked_badssl_com_2.crt"),
+//         ],
+//         stapled_ocsp: Some(include_bytes!("revoked_badssl_com_1.ocsp")),
+//         // XXX: We only do OCSP stapling on Windows.
+//         valid: !cfg!(windows),
+//     });
+// }

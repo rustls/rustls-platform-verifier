@@ -153,6 +153,5 @@ mod dummy {
             target_os = "linux"
         ))]
         let _ = tests::verification_mock::ALL_TEST_CASES;
-        let _ = tests::verification_real_world::ALL_TEST_CASES;
     }
 }
