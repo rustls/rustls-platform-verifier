@@ -517,14 +517,7 @@ impl Verifier {
         roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
         crypto_provider: Arc<CryptoProvider>,
     ) -> Result<Self, TlsError> {
-        let cert_engine = CertEngine::new_with_extra_roots(roots)?;
-        Ok(Self {
-            #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-            test_only_root_ca_override: None,
-            crypto_provider,
-            extra_roots: Some(cert_engine),
-            hostname_verification: HostnameVerification::Verify,
-        })
+        new_with_hostname_verification(roots, crypto_provider, HostnameVerification::Verify)
     }
 
     /// Creates a new instance of a TLS certificate verifier that utilizes the
@@ -536,6 +529,7 @@ impl Verifier {
         crypto_provider: Arc<CryptoProvider>,
         hostname_verification: HostnameVerification,
     ) -> Result<Self, TlsError> {
+        let cert_engine = CertEngine::new_with_extra_roots(roots)?;
         Ok(Self {
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
