@@ -55,6 +55,7 @@ use windows_sys::Win32::{
 };
 
 use super::{log_server_cert, ALLOWED_EKUS};
+use crate::verification::HostnameVerification;
 
 // The `windows-sys` definition for `CERT_CHAIN_PARA` does not take old OS versions
 // into account so we define it ourselves for better (hypothetical) OS backwards compat.
@@ -127,12 +128,14 @@ struct CertChain {
 impl CertChain {
     fn verify_chain_policy(
         &self,
-        mut server_null_terminated: Vec<u16>,
+        mut server_null_terminated: Option<Vec<u16>>,
     ) -> Result<CERT_CHAIN_POLICY_STATUS, TlsError> {
         let mut extra_params = HTTPSPolicyCallbackData::zeroed_with_size();
         extra_params.dwAuthType = AUTHTYPE_SERVER;
-        // `server_null_terminated` outlives `extra_params`.
-        extra_params.pwszServerName = server_null_terminated.as_mut_ptr();
+        if let Some(server_null_terminated) = server_null_terminated {
+            // `server_null_terminated` outlives `extra_params`.
+            extra_params.pwszServerName = server_null_terminated.as_mut_ptr();
+        }
 
         let mut params = CERT_CHAIN_POLICY_PARA::zeroed_with_size();
         // Ignore any errors when trying to obtain OCSP revocation information.
@@ -492,6 +495,7 @@ pub struct Verifier {
     /// Extra trust anchors to add to the verifier above and beyond those provided by
     /// the system-provided trust stores.
     extra_roots: Option<CertEngine>,
+    hostname_verification: HostnameVerification,
 }
 
 impl Verifier {
@@ -503,6 +507,7 @@ impl Verifier {
             test_only_root_ca_override: None,
             crypto_provider,
             extra_roots: None,
+            hostname_verification: HostnameVerification::Verify,
         })
     }
 
@@ -518,6 +523,25 @@ impl Verifier {
             test_only_root_ca_override: None,
             crypto_provider,
             extra_roots: Some(cert_engine),
+            hostname_verification: HostnameVerification::Verify,
+        })
+    }
+
+    /// Creates a new instance of a TLS certificate verifier that utilizes the
+    /// Windows certificate facilities and augmented by the provided extra root certificates.
+    ///
+    /// The hostname verification is set to the provided value.
+    pub fn new_with_hostname_verification(
+        roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
+        crypto_provider: Arc<CryptoProvider>,
+        hostname_verification: HostnameVerification,
+    ) -> Result<Self, TlsError> {
+        Ok(Self {
+            #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
+            test_only_root_ca_override: None,
+            crypto_provider,
+            extra_roots: Some(cert_engine),
+            hostname_verification,
         })
     }
 
@@ -531,6 +555,7 @@ impl Verifier {
             test_only_root_ca_override: Some(root),
             crypto_provider,
             extra_roots: None,
+            hostname_verification: HostnameVerification::Verify,
         }
     }
 
@@ -580,12 +605,18 @@ impl Verifier {
             }
         }
 
-        // Encode UTF-16, null-terminated
-        let server: Vec<u16> = server
-            .iter()
-            .map(|c| u16::from(*c))
-            .chain(Some(0))
-            .collect();
+        let server: Option<Vec<u16>> = if self.hostname_verification.is_verify() {
+            // Encode UTF-16, null-terminated
+            Some(
+                server
+                    .iter()
+                    .map(|c| u16::from(*c))
+                    .chain(Some(0))
+                    .collect(),
+            )
+        } else {
+            None
+        };
 
         let mut cert_chain = store.new_chain_in(&primary_cert, now, store.engine.as_ref())?;
 

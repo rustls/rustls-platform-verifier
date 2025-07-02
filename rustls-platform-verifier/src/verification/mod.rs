@@ -84,3 +84,16 @@ const ALLOWED_EKUS: &[windows_sys::core::PCSTR] =
     &[windows_sys::Win32::Security::Cryptography::szOID_PKIX_KP_SERVER_AUTH];
 #[cfg(target_os = "android")]
 pub const ALLOWED_EKUS: &[&str] = &["1.3.6.1.5.5.7.3.1"];
+
+/// Decide whether to verify the hostname of the certificate.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum HostnameVerification {
+    Verify,
+    Ignore,
+}
+
+impl HostnameVerification {
+    pub fn is_verify(&self) -> bool {
+        self == &HostnameVerification::Verify
+    }
+}

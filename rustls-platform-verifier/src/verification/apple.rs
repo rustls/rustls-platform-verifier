@@ -14,7 +14,7 @@ use security_framework::{
 };
 
 use super::log_server_cert;
-use crate::verification::invalid_certificate;
+use crate::verification::{invalid_certificate, HostnameVerification};
 
 mod errors {
     pub(super) use security_framework_sys::base::{
@@ -50,6 +50,7 @@ pub struct Verifier {
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
     test_only_root_ca_override: Option<SecCertificate>,
     crypto_provider: Arc<CryptoProvider>,
+    hostname_verification: HostnameVerification,
 }
 
 impl Verifier {
@@ -61,6 +62,7 @@ impl Verifier {
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
             crypto_provider,
+            hostname_verification: HostnameVerification::Verify,
         })
     }
 
@@ -84,6 +86,27 @@ impl Verifier {
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
             test_only_root_ca_override: None,
             crypto_provider,
+            hostname_verification: HostnameVerification::Verify,
+        })
+    }
+
+    /// Creates a new instance of a TLS certificate verifier that utilizes the Apple certificate
+    /// facilities with the addition of extra root certificates to trust.
+    ///
+    /// See [Verifier::new] for the external requirements the verifier needs.
+    ///
+    /// The hostname verification is set to the provided value.
+    pub fn new_with_hostname_verification(
+        roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
+        crypto_provider: Arc<CryptoProvider>,
+        hostname_verification: HostnameVerification,
+    ) -> Result<Self, TlsError> {
+        Ok(Self {
+            extra_roots,
+            #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
+            test_only_root_ca_override: None,
+            crypto_provider,
+            hostname_verification,
         })
     }
 
@@ -97,6 +120,7 @@ impl Verifier {
             extra_roots: Vec::new(),
             test_only_root_ca_override: Some(SecCertificate::from_der(root.as_ref()).unwrap()),
             crypto_provider,
+            hostname_verification: HostnameVerification::Verify,
         }
     }
 
@@ -123,9 +147,15 @@ impl Verifier {
         // certificates.
         //
         // The server name will be required to match what the end-entity certificate reports
+        // if we are verifying the hostname.
         //
         // Ref: https://developer.apple.com/documentation/security/1392592-secpolicycreatessl
-        let policy = SecPolicy::create_ssl(SslProtocolSide::SERVER, Some(server_name));
+        let server_name = if self.hostname_verification.is_verify() {
+            Some(server_name)
+        } else {
+            None
+        };
+        let policy = SecPolicy::create_ssl(SslProtocolSide::SERVER, server_name);
 
         // Create our trust evaluation context/chain.
         //

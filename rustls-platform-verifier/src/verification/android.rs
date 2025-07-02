@@ -15,6 +15,7 @@ use rustls::{
 
 use super::{log_server_cert, ALLOWED_EKUS};
 use crate::android::{with_context, CachedClass};
+use crate::verification::HostnameVerification;
 
 static CERT_VERIFIER_CLASS: CachedClass =
     CachedClass::new("org/rustls/platformverifier/CertificateVerifier");
@@ -47,6 +48,7 @@ pub struct Verifier {
     #[cfg(any(test, feature = "ffi-testing"))]
     test_only_root_ca_override: Option<pki_types::CertificateDer<'static>>,
     crypto_provider: Arc<CryptoProvider>,
+    hostname_verification: HostnameVerification,
 }
 
 #[cfg(any(test, feature = "ffi-testing"))]
@@ -69,6 +71,23 @@ impl Verifier {
             #[cfg(any(test, feature = "ffi-testing"))]
             test_only_root_ca_override: None,
             crypto_provider,
+            hostname_verification: HostnameVerification::Verify,
+        })
+    }
+
+    /// Creates a new instance of a TLS certificate verifier that utilizes the
+    /// Android certificate facilities.
+    ///
+    /// The hostname verification is set to the provided value.
+    pub fn new_with_hostname_verification(
+        crypto_provider: Arc<CryptoProvider>,
+        hostname_verification: HostnameVerification,
+    ) -> Result<Self, TlsError> {
+        Ok(Self {
+            #[cfg(any(test, feature = "ffi-testing"))]
+            test_only_root_ca_override: None,
+            crypto_provider,
+            hostname_verification,
         })
     }
 
@@ -81,6 +100,7 @@ impl Verifier {
         Self {
             test_only_root_ca_override: Some(root),
             crypto_provider,
+            hostname_verification: HostnameVerification::Verify,
         }
     }
 
@@ -200,11 +220,13 @@ impl Verifier {
                 // for the variants.
                 match status {
                     VerifierStatus::Ok => {
-                        // If everything else was OK, check the hostname.
-                        rustls::client::verify_server_name(
-                            &rustls::server::ParsedCertificate::try_from(end_entity)?,
-                            server_name,
-                        )
+                        if self.hostname_verification.is_verify() {
+                            // If everything else was OK, check the hostname.
+                            rustls::client::verify_server_name(
+                                &rustls::server::ParsedCertificate::try_from(end_entity)?,
+                                server_name,
+                            )
+                        }
                     }
                     VerifierStatus::Unavailable => Err(TlsError::General(String::from(
                         "No system trust stores available",

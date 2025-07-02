@@ -2,33 +2,31 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
-use rustls::client::WebPkiServerVerifier;
-use rustls::pki_types;
+use rustls::crypto::WebPkiSupportedAlgorithms;
+use rustls::server::ParsedCertificate;
 use rustls::{
     crypto::CryptoProvider, CertificateError, DigitallySignedStruct, Error as TlsError, OtherError,
     SignatureScheme,
 };
+use rustls::{pki_types, RootCertStore};
+
+use crate::verification::HostnameVerification;
 
 use super::log_server_cert;
 
 /// A TLS certificate verifier that uses the system's root store and WebPKI.
 #[derive(Debug)]
 pub struct Verifier {
-    // We use a `OnceCell` so we only need
-    // to try loading native root certs once per verifier.
-    //
-    // We currently keep one set of certificates per-verifier so that
-    // locking and unlocking the application will pull fresh root
-    // certificates from disk, picking up on any changes
-    // that might have been made since.
-    inner: Arc<WebPkiServerVerifier>,
+    roots: RootCertStore,
+    signature_algorithms: WebPkiSupportedAlgorithms,
+    hostname_verification: HostnameVerification,
 }
 
 impl Verifier {
     /// Creates a new verifier whose certificate validation is provided by
     /// WebPKI, using root certificates provided by the platform.
     pub fn new(crypto_provider: Arc<CryptoProvider>) -> Result<Self, TlsError> {
-        Self::new_inner([], None, crypto_provider)
+        Self::new_inner([], None, crypto_provider, HostnameVerification::Verify)
     }
 
     /// Creates a new verifier whose certificate validation is provided by
@@ -38,7 +36,25 @@ impl Verifier {
         extra_roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
         crypto_provider: Arc<CryptoProvider>,
     ) -> Result<Self, TlsError> {
-        Self::new_inner(extra_roots, None, crypto_provider)
+        Self::new_inner(
+            extra_roots,
+            None,
+            crypto_provider,
+            HostnameVerification::Verify,
+        )
+    }
+
+    /// Creates a new verifier whose certificate validation is provided by
+    /// WebPKI, using root certificates provided by the platform and augmented by
+    /// the provided extra root certificates.
+    ///
+    /// The hostname verification is set to the provided value.
+    pub fn new_with_hostname_verification(
+        extra_roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
+        crypto_provider: Arc<CryptoProvider>,
+        hostname_verification: HostnameVerification,
+    ) -> Result<Self, TlsError> {
+        Self::new_inner(extra_roots, None, crypto_provider, hostname_verification)
     }
 
     /// Creates a test-only TLS certificate verifier which trusts our fake root CA cert.
@@ -47,8 +63,13 @@ impl Verifier {
         root: pki_types::CertificateDer<'static>,
         crypto_provider: Arc<CryptoProvider>,
     ) -> Self {
-        Self::new_inner([], Some(root), crypto_provider)
-            .expect("failed to create verifier with fake root")
+        Self::new_inner(
+            [],
+            Some(root),
+            crypto_provider,
+            HostnameVerification::Verify,
+        )
+        .expect("failed to create verifier with fake root")
     }
 
     /// Creates a new verifier whose certificate validation is provided by
@@ -59,6 +80,7 @@ impl Verifier {
         #[allow(unused)] // test_root is only used in tests
         test_root: Option<pki_types::CertificateDer<'static>>,
         crypto_provider: Arc<CryptoProvider>,
+        hostname_verification: HostnameVerification,
     ) -> Result<Self, TlsError> {
         let mut root_store = rustls::RootCertStore::empty();
 
@@ -68,12 +90,9 @@ impl Verifier {
             if let Some(test_root) = test_root {
                 root_store.add(test_root)?;
                 return Ok(Self {
-                    inner: WebPkiServerVerifier::builder_with_provider(
-                        root_store.into(),
-                        crypto_provider.clone(),
-                    )
-                    .build()
-                    .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))?,
+                    roots: root_store,
+                    signature_algorithms: crypto_provider.signature_verification_algorithms,
+                    hostname_verification,
                 });
             }
         }
@@ -120,12 +139,9 @@ impl Verifier {
         };
 
         Ok(Self {
-            inner: WebPkiServerVerifier::builder_with_provider(
-                root_store.into(),
-                crypto_provider.clone(),
-            )
-            .build()
-            .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))?,
+            roots: root_store,
+            signature_algorithms: crypto_provider.signature_verification_algorithms,
+            hostname_verification,
         })
     }
 }
@@ -140,16 +156,26 @@ impl ServerCertVerifier for Verifier {
         now: pki_types::UnixTime,
     ) -> Result<ServerCertVerified, TlsError> {
         log_server_cert(end_entity);
+        let cert = ParsedCertificate::try_from(end_entity)?;
 
-        self.inner
-            .verify_server_cert(end_entity, intermediates, server_name, ocsp_response, now)
-            .map_err(map_webpki_errors)
-            // This only contains information from the system or other public
-            // bits of the TLS handshake, so it can't leak anything.
-            .map_err(|e| {
-                log::error!("failed to verify TLS certificate: {}", e);
-                e
-            })
+        rustls::client::verify_server_cert_signed_by_trust_anchor(
+            &cert,
+            &self.roots,
+            intermediates,
+            now,
+            self.signature_algorithms.all,
+        )
+        .map_err(map_webpki_errors)?;
+
+        if !ocsp_response.is_empty() {
+            log::trace!("Unvalidated OCSP response: {:?}", ocsp_response.to_vec());
+        }
+
+        if self.hostname_verification.is_verify() {
+            rustls::client::verify_server_name(&cert, server_name).map_err(map_webpki_errors)?;
+        }
+
+        Ok(ServerCertVerified::assertion())
     }
 
     fn verify_tls12_signature(
@@ -158,7 +184,7 @@ impl ServerCertVerifier for Verifier {
         cert: &pki_types::CertificateDer<'_>,
         dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, TlsError> {
-        self.inner.verify_tls12_signature(message, cert, dss)
+        rustls::crypto::verify_tls12_signature(message, cert, dss, &self.signature_algorithms)
     }
 
     fn verify_tls13_signature(
@@ -167,16 +193,16 @@ impl ServerCertVerifier for Verifier {
         cert: &pki_types::CertificateDer<'_>,
         dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, TlsError> {
-        self.inner.verify_tls13_signature(message, cert, dss)
+        rustls::crypto::verify_tls13_signature(message, cert, dss, &self.signature_algorithms)
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        self.inner.supported_verify_schemes()
+        self.signature_algorithms.supported_schemes()
     }
 }
 
 fn map_webpki_errors(err: TlsError) -> TlsError {
-    match &err {
+    let err = match &err {
         TlsError::InvalidCertificate(CertificateError::InvalidPurpose)
         | TlsError::InvalidCertificate(CertificateError::InvalidPurposeContext { .. }) => {
             TlsError::InvalidCertificate(CertificateError::Other(OtherError(Arc::new(
@@ -184,5 +210,8 @@ fn map_webpki_errors(err: TlsError) -> TlsError {
             ))))
         }
         _ => err,
-    }
+    };
+
+    log::error!("failed to verify TLS certificate: {}", err);
+    err
 }
