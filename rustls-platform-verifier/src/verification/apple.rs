@@ -57,13 +57,7 @@ impl Verifier {
     /// Creates a new instance of a TLS certificate verifier that utilizes the Apple certificate
     /// facilities.
     pub fn new(crypto_provider: Arc<CryptoProvider>) -> Result<Self, TlsError> {
-        Ok(Self {
-            extra_roots: Vec::new(),
-            #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-            test_only_root_ca_override: None,
-            crypto_provider,
-            hostname_verification: HostnameVerification::Verify,
-        })
+        new_with_hostname_verification(Vec::new(), crypto_provider, HostnameVerification::Verify)
     }
 
     /// Creates a new instance of a TLS certificate verifier that utilizes the Apple certificate
@@ -74,20 +68,7 @@ impl Verifier {
         roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
         crypto_provider: Arc<CryptoProvider>,
     ) -> Result<Self, TlsError> {
-        let extra_roots = roots
-            .into_iter()
-            .map(|root| {
-                SecCertificate::from_der(&root)
-                    .map_err(|_| TlsError::InvalidCertificate(CertificateError::BadEncoding))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self {
-            extra_roots,
-            #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-            test_only_root_ca_override: None,
-            crypto_provider,
-            hostname_verification: HostnameVerification::Verify,
-        })
+        new_with_hostname_verification(roots, crypto_provider, HostnameVerification::Verify)
     }
 
     /// Creates a new instance of a TLS certificate verifier that utilizes the Apple certificate
@@ -101,6 +82,13 @@ impl Verifier {
         crypto_provider: Arc<CryptoProvider>,
         hostname_verification: HostnameVerification,
     ) -> Result<Self, TlsError> {
+        let extra_roots = roots
+        .into_iter()
+        .map(|root| {
+            SecCertificate::from_der(&root)
+                .map_err(|_| TlsError::InvalidCertificate(CertificateError::BadEncoding))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             extra_roots,
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
