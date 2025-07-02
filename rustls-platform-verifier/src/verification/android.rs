@@ -219,15 +219,14 @@ impl Verifier {
                 // The branches which unwrap it will never fail since the Kotlin side always sets it
                 // for the variants.
                 match status {
-                    VerifierStatus::Ok => {
-                        if self.hostname_verification.is_verify() {
-                            // If everything else was OK, check the hostname.
-                            rustls::client::verify_server_name(
-                                &rustls::server::ParsedCertificate::try_from(end_entity)?,
-                                server_name,
-                            )
-                        }
+                    VerifierStatus::Ok if self.hostname_verification.is_verify() => {
+                        // If everything else was OK, check the hostname.
+                        rustls::client::verify_server_name(
+                            &rustls::server::ParsedCertificate::try_from(end_entity)?,
+                            server_name,
+                        )
                     }
+                    VerifierStatus::Ok => Ok(()),
                     VerifierStatus::Unavailable => Err(TlsError::General(String::from(
                         "No system trust stores available",
                     ))),
