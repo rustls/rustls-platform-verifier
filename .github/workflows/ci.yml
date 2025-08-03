@@ -299,9 +299,9 @@ jobs:
           persist-credentials: false
 
       - name: Install rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
 
       - name: Build documentation
         run: cargo doc --locked --all-features --no-deps --document-private-items
         env:
-          RUSTDOCFLAGS: -Dwarnings
+          RUSTDOCFLAGS: -Dwarnings --cfg=docsrs
