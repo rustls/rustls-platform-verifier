@@ -26,13 +26,14 @@ dbg = []
 # by the platform's verifier.
 cert-logging = ["base64"]
 # Used for nicely documenting the Android-specific APIs. This feature is not stable.
-docsrs = ["jni"]
+docsrs = ["jni", "once_cell"]
 
 [dependencies]
 rustls = { version = "0.23.27", default-features = false, features = ["std"] }
 log = { version = "0.4" }
 base64 = { version = "0.22", optional = true } # Only used when the `cert-logging` feature is enabled.
 jni = { version = "0.21", default-features = false, optional = true } # Only used during doc generation
+once_cell = { version = "1.9", optional = true } # Only used during doc generation
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_vendor = "apple"), not(target_arch = "wasm32")))'.dependencies]
 rustls-native-certs = "0.8"
