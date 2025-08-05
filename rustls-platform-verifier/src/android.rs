@@ -21,7 +21,7 @@
 
 use jni::errors::Error as JNIError;
 use jni::objects::{GlobalRef, JClass, JObject, JValue};
-use jni::{JNIEnv, JavaVM};
+use jni::{AttachGuard, JNIEnv, JavaVM};
 use once_cell::sync::OnceCell;
 
 static GLOBAL: OnceCell<Global> = OnceCell::new();
@@ -52,15 +52,15 @@ enum Global {
 }
 
 impl Global {
-    fn env(&self) -> Result<JNIEnv<'_>, Error> {
+    fn env(&self) -> Result<AttachGuard<'_>, Error> {
         let vm = match self {
             Global::Internal { java_vm, .. } => java_vm,
             Global::External(global) => global.java_vm(),
         };
-        Ok(vm.attach_current_thread_permanently()?)
+        Ok(vm.attach_current_thread()?)
     }
 
-    fn context(&self) -> Result<Context<'_>, Error> {
+    fn context(&self) -> Result<(GlobalContext, AttachGuard<'_>), Error> {
         let env = self.env()?;
 
         let context = match self {
@@ -73,12 +73,19 @@ impl Global {
             Global::External(global) => global.class_loader(),
         };
 
-        Ok(Context {
-            context: env.new_global_ref(context)?,
-            loader: env.new_global_ref(loader)?,
+        Ok((
+            GlobalContext {
+                context: env.new_global_ref(context)?,
+                loader: env.new_global_ref(loader)?,
+            },
             env,
-        })
+        ))
     }
+}
+
+struct GlobalContext {
+    context: GlobalRef,
+    loader: GlobalRef,
 }
 
 fn global() -> &'static Global {
@@ -178,29 +185,18 @@ impl From<JNIError> for Error {
     }
 }
 
-pub(super) struct Context<'a> {
-    env: JNIEnv<'a>,
+pub(super) struct LocalContext<'a, 'env> {
+    env: &'a mut JNIEnv<'env>,
     context: GlobalRef,
     loader: GlobalRef,
 }
 
-impl<'a> Context<'a> {
-    /// Borrow a reference to the JNI Environment executing the Android application
-    pub(super) fn env(&mut self) -> &mut JNIEnv<'a> {
-        &mut self.env
-    }
-
-    /// Borrow the `applicationContext` from the Android application
-    /// <https://developer.android.com/reference/android/app/Application>
-    pub(super) fn application_context(&self) -> &JObject<'a> {
-        &self.context
-    }
-
+impl<'a, 'env> LocalContext<'a, 'env> {
     /// Load a class from the application class loader
     ///
     /// This should be used instead of `JNIEnv::find_class` to ensure all classes
     /// in the application can be found.
-    pub(super) fn load_class(&mut self, name: &str) -> Result<JClass<'a>, Error> {
+    fn load_class(&mut self, name: &str) -> Result<JClass<'env>, Error> {
         let name = self.env.new_string(name)?;
         let class = self.env.call_method(
             &self.loader,
@@ -211,6 +207,12 @@ impl<'a> Context<'a> {
 
         Ok(JObject::try_from(class)?.into())
     }
+
+    /// Borrow the `applicationContext` from the Android application
+    /// <https://developer.android.com/reference/android/app/Application>
+    pub(super) fn application_context(&self) -> &JObject<'_> {
+        &self.context
+    }
 }
 
 /// Borrow the Android application context and execute the closure
@@ -218,14 +220,26 @@ impl<'a> Context<'a> {
 /// are cleared.
 pub(super) fn with_context<F, T>(f: F) -> Result<T, Error>
 where
-    F: FnOnce(&mut Context, &mut JNIEnv) -> Result<T, Error>,
+    F: FnOnce(&mut LocalContext, &mut JNIEnv) -> Result<T, Error>,
 {
-    let mut context = global().context()?;
-    let mut binding = global().context()?;
-    let env = binding.env();
+    let (global_context, mut binding_env) = global().context()?;
+    // SAFETY: Any local references created with this env are always destroyed prior to the parent
+    // frame exiting because we force it to be dropped before the new frame exits and don't allow
+    // the closure to access the env directly. We don't use it anywhere outside that sub-scope either.
+    //
+    // Rust's borrowing rules enforce that any reference that came from this env must be dropped before it is too.
+    let ctx_env = unsafe { binding_env.unsafe_clone() };
 
     // 16 is the default capacity in the JVM, we can make this configurable if necessary
-    env.with_local_frame(16, |env| f(&mut context, env))
+    binding_env.with_local_frame(16, |env| {
+        let mut ctx_env = ctx_env;
+        let mut context = LocalContext {
+            env: &mut ctx_env,
+            context: global_context.context,
+            loader: global_context.loader,
+        };
+        f(&mut context, env)
+    })
 }
 
 /// Loads and caches a class on first use
@@ -244,11 +258,11 @@ impl CachedClass {
     }
 
     /// Gets the cached class reference, loaded on first use
-    pub(super) fn get<'a: 'b, 'b>(&'a self, cx: &mut Context<'b>) -> Result<&'a JClass<'b>, Error> {
+    pub(super) fn get(&self, cx: &mut LocalContext) -> Result<&JClass<'_>, Error> {
         let class = self.class.get_or_try_init(|| -> Result<_, Error> {
             let class = cx.load_class(self.name)?;
 
-            Ok(cx.env().new_global_ref(class)?)
+            Ok(cx.env.new_global_ref(class)?)
         })?;
 
         Ok(class.as_obj().into())
