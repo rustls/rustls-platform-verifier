@@ -218,7 +218,7 @@ impl<'a, 'env> LocalContext<'a, 'env> {
 /// Borrow the Android application context and execute the closure
 /// `with_context, ensuring locals are properly freed and exceptions
 /// are cleared.
-pub(super) fn with_context<F, T>(f: F) -> Result<T, Error>
+pub(super) fn with_context<F, T: 'static>(f: F) -> Result<T, Error>
 where
     F: FnOnce(&mut LocalContext, &mut JNIEnv) -> Result<T, Error>,
 {
