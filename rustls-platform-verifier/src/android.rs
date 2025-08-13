@@ -52,7 +52,7 @@ enum Global {
 }
 
 impl Global {
-    fn env(&self) -> Result<JNIEnv, Error> {
+    fn env(&self) -> Result<JNIEnv<'_>, Error> {
         let vm = match self {
             Global::Internal { java_vm, .. } => java_vm,
             Global::External(global) => global.java_vm(),
@@ -60,7 +60,7 @@ impl Global {
         Ok(vm.attach_current_thread_permanently()?)
     }
 
-    fn context(&self) -> Result<Context, Error> {
+    fn context(&self) -> Result<Context<'_>, Error> {
         let env = self.env()?;
 
         let context = match self {
