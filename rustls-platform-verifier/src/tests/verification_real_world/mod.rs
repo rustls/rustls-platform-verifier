@@ -67,14 +67,8 @@ const VALID_1PASSWORD_COM_CHAIN: &[&[u8]] = &[
 
 const MY_1PASSWORD_COM: &str = "my.1password.com";
 
-// A domain name for which `VALID_1PASSWORD_COM_CHAIN` isn't valid.
-const VALID_UNRELATED_DOMAIN: &str = "agilebits.com";
-const VALID_UNRELATED_CHAIN: &[&[u8]] = &[
-    include_bytes!("agilebits_com_valid_1.crt"),
-    include_bytes!("agilebits_com_valid_2.crt"),
-    include_bytes!("agilebits_com_valid_3.crt"),
-    include_bytes!("agilebits_com_valid_4.crt"),
-];
+// A domain name for which `VALID_AWS_AMAZON_COM_CHAIN` isn't valid.
+const VALID_UNRELATED_DOMAIN: &str = "my.1password.com";
 
 const LETSENCRYPT_ORG: &str = "letsencrypt.org";
 
@@ -213,16 +207,6 @@ real_world_test_cases! {
         })),
         #[cfg(any(target_vendor = "apple", windows))]
         expected_result: Err(TlsError::InvalidCertificate(CertificateError::NotValidForName)),
-        other_error: no_error!(),
-    },
-    // The certificate chain for the unrelated domain is valid for that
-    // unrelated domain.
-    unrelated_chain_valid_for_unrelated_domain => TestCase {
-        reference_id: VALID_UNRELATED_DOMAIN,
-        chain: VALID_UNRELATED_CHAIN,
-        stapled_ocsp: None,
-        verification_time: verification_time(),
-        expected_result: Ok(()),
         other_error: no_error!(),
     },
     // The certificate chain for the unrelated domain is not valid for
