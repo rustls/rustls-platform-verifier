@@ -44,4 +44,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-const HOSTS: &[&str] = &["letsencrypt.org"];
+// We use two different CAs for better coverage and...
+const HOSTS: &[&str] = &[
+    // This host is using EC-based certificates for coverage.
+    "letsencrypt.org",
+    // This host is using RSA-based certificates for coverage.
+    "aws.amazon.com",
+];
