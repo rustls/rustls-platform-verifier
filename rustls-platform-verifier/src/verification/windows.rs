@@ -35,7 +35,7 @@ use rustls::{
 };
 use windows_sys::Win32::{
     Foundation::{
-        BOOL, CERT_E_CN_NO_MATCH, CERT_E_EXPIRED, CERT_E_INVALID_NAME, CERT_E_UNTRUSTEDROOT,
+        CERT_E_CN_NO_MATCH, CERT_E_EXPIRED, CERT_E_INVALID_NAME, CERT_E_UNTRUSTEDROOT,
         CERT_E_WRONG_USAGE, CRYPT_E_REVOKED, FILETIME, TRUE,
     },
     Security::Cryptography::{
@@ -66,7 +66,7 @@ struct CERT_CHAIN_PARA {
     pub RequestedUsage: CERT_USAGE_MATCH,
     pub RequestedIssuancePolicy: CERT_USAGE_MATCH,
     pub dwUrlRetrievalTimeout: u32,
-    pub fCheckRevocationFreshnessTime: BOOL,
+    pub fCheckRevocationFreshnessTime: i32, // BOOL
     pub dwRevocationFreshnessTime: u32,
     pub pftCacheResync: *mut FILETIME,
     // XXX: `pStrongSignPara` and `dwStrongSignFlags` might or might not be defined on the current system. It started
@@ -230,7 +230,7 @@ impl CertEngine {
         let mut config = CERT_CHAIN_ENGINE_CONFIG::zeroed_with_size();
         config.hExclusiveRoot = exclusive_store.inner.as_ptr();
 
-        let mut engine = 0;
+        let mut engine = EnginePtr::NULL;
         // SAFETY: `engine` is valid to be written to and the config is valid to be read.
         let res = unsafe { CertCreateCertificateChainEngine(&config, &mut engine) };
 
@@ -264,7 +264,7 @@ impl CertEngine {
         config.dwFlags = CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL | CERT_CHAIN_ENABLE_CACHE_AUTO_UPDATE;
         config.hExclusiveRoot = root_store.inner.as_ptr();
 
-        let mut engine = 0;
+        let mut engine = EnginePtr::NULL;
         // SAFETY: `engine` is valid to be written to and the config is valid to be read.
         let res = unsafe { CertCreateCertificateChainEngine(&config, &mut engine) };
 
@@ -276,17 +276,12 @@ impl CertEngine {
 
         Ok(Self { inner: engine })
     }
-
-    #[allow(clippy::as_conversions)]
-    fn as_ptr(&self) -> isize {
-        self.inner.as_ptr() as isize
-    }
 }
 
 impl Drop for CertEngine {
     fn drop(&mut self) {
         // SAFETY: The engine pointer is guaranteed to be non-null.
-        unsafe { CertFreeCertificateChainEngine(self.as_ptr()) };
+        unsafe { CertFreeCertificateChainEngine(EnginePtr::from_raw(self.inner)) };
     }
 }
 
@@ -452,7 +447,10 @@ impl CertificateStore {
             let parameters = NonNull::from(&parameters).cast().as_ptr();
 
             CertGetCertificateChain(
-                engine.map(CertEngine::as_ptr).unwrap_or(0),
+                match engine {
+                    Some(eng) => EnginePtr::from_raw(eng.inner),
+                    None => EnginePtr::NULL,
+                },
                 certificate.inner.as_ptr(),
                 &time,
                 self.inner.as_ptr(),
@@ -470,6 +468,33 @@ impl CertificateStore {
             _ => None,
         })
     }
+}
+
+// `windows-sys` >= 0.60
+impl EnginePtr for *mut c_void {
+    fn from_raw(val: NonNull<c_void>) -> Self {
+        val.as_ptr()
+    }
+
+    const NULL: Self = ptr::null_mut();
+}
+
+// `windows-sys` 0.52-0.59
+impl EnginePtr for isize {
+    #[allow(clippy::as_conversions)]
+    fn from_raw(val: NonNull<c_void>) -> Self {
+        val.as_ptr() as isize
+    }
+
+    const NULL: Self = 0;
+}
+
+/// An abstraction trait over the different ways various `windows-sys` versions represent
+/// the type of `HCERTCHAINENGINE`.
+trait EnginePtr: Sized {
+    fn from_raw(val: NonNull<c_void>) -> Self;
+
+    const NULL: Self;
 }
 
 fn call_with_last_error<T, F: FnMut() -> Option<T>>(mut call: F) -> Result<T, TlsError> {
