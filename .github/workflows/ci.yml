@@ -125,8 +125,8 @@ jobs:
       - name: Clippy (iOS)
         if: matrix.os == 'macos-latest'
         run: |
-          rustup target add x86_64-apple-ios
-          cargo clippy-msrv-ci --target x86_64-apple-ios
+          rustup target add aarch64-apple-ios
+          cargo clippy-msrv-ci --target aarch64-apple-ios
 
       # TODO: Consider WASM. See note on "clippy" job.
 
