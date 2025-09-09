@@ -330,7 +330,9 @@ internal object CertificateVerifier {
 
             revocationChecker.options = EnumSet.of(
                 PKIXRevocationChecker.Option.SOFT_FAIL,
-                PKIXRevocationChecker.Option.ONLY_END_ENTITY
+                PKIXRevocationChecker.Option.ONLY_END_ENTITY,
+                PKIXRevocationChecker.Option.PREFER_CRLS,
+                PKIXRevocationChecker.Option.NO_FALLBACK
             )
 
             // Use the OCSP data `rustls` provided, if present.
