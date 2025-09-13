@@ -1,9 +1,8 @@
-use std::sync::Arc;
-
 use jni::{
-    objects::{JObject, JValue},
-    strings::JavaStr,
-    JNIEnv,
+    jni_sig, jni_str,
+    objects::{JByteArray, JObject, JObjectArray, JString, JValue},
+    signature::MethodSignature,
+    Env,
 };
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerifier};
 use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, CryptoProvider};
@@ -12,17 +11,13 @@ use rustls::Error::InvalidCertificate;
 use rustls::{
     CertificateError, DigitallySignedStruct, Error as TlsError, OtherError, SignatureScheme,
 };
+use std::sync::Arc;
 
 use super::{log_server_cert, ALLOWED_EKUS};
 use crate::android::{with_context, CachedClass};
 
 static CERT_VERIFIER_CLASS: CachedClass =
-    CachedClass::new("org/rustls/platformverifier/CertificateVerifier");
-
-// Find the `ByteArray (Uint8 [])` class.
-static BYTE_ARRAY_CLASS: CachedClass = CachedClass::new("[B");
-
-static STRING_CLASS: CachedClass = CachedClass::new("java/lang/String");
+    CachedClass::new(jni_str!("org.rustls.platformverifier.CertificateVerifier"));
 
 // Note: Keep these in sync with the Kotlin enum.
 #[derive(Debug)]
@@ -52,8 +47,15 @@ pub struct Verifier {
 #[cfg(any(test, feature = "ffi-testing"))]
 impl Drop for Verifier {
     fn drop(&mut self) {
-        with_context::<_, ()>(|cx, env| {
-            env.call_static_method(CERT_VERIFIER_CLASS.get(cx)?, "clearMockRoots", "()V", &[])?
+        with_context::<_, ()>(|cx| {
+            let cert_verifier_class = CERT_VERIFIER_CLASS.get(cx)?;
+            cx.env
+                .call_static_method(
+                    cert_verifier_class,
+                    jni_str!("clearMockRoots"),
+                    jni_sig!(() -> void),
+                    &[],
+                )?
                 .v()?;
             Ok(())
         })
@@ -105,83 +107,84 @@ impl Verifier {
             .try_into()
             .map_err(|_| TlsError::FailedToGetCurrentTime)?;
 
-        let verification_result = with_context(|cx, env| {
-            // We don't provide an initial element so that the array filling can be cleaner.
-            // It's valid to provide a `null` value. Ref: https://docs.oracle.com/en/java/javase/13/docs/specs/jni/functions.html -> NewObjectArray
+        let verification_result = with_context(|cx| {
+            let cert_verifier_class = CERT_VERIFIER_CLASS.get(cx)?;
+
             let cert_list = {
-                let array = env.new_object_array(
-                    (intermediates.len() + 1).try_into().unwrap(),
-                    BYTE_ARRAY_CLASS.get(cx)?,
-                    JObject::null(),
+                let array = JObjectArray::<JByteArray>::new(
+                    cx.env,
+                    intermediates.len() + 1,
+                    &JByteArray::null(),
                 )?;
 
                 for (idx, cert) in certificate_chain {
-                    let idx = idx.try_into().unwrap();
-                    let cert_buffer = env.byte_array_from_slice(cert)?;
-                    env.set_object_array_element(&array, idx, cert_buffer)?
+                    let cert_buffer = cx.env.byte_array_from_slice(cert)?;
+                    array.set_element(cx.env, idx, cert_buffer)?;
                 }
 
                 array
             };
 
             let allowed_ekus = {
-                let array = env.new_object_array(
-                    ALLOWED_EKUS.len().try_into().unwrap(),
-                    STRING_CLASS.get(cx)?,
-                    JObject::null(),
-                )?;
+                let array =
+                    JObjectArray::<JString>::new(cx.env, ALLOWED_EKUS.len(), &JString::null())?;
 
                 for (idx, eku) in ALLOWED_EKUS.iter().enumerate() {
-                    let idx = idx.try_into().unwrap();
-                    let eku = env.new_string(eku)?;
-                    env.set_object_array_element(&array, idx, eku)?;
+                    let eku = cx.env.new_string(eku.to_str().expect(
+                        "ALLOWED_EKUS entries are ASCII constants -- always valid UTF-8",
+                    ))?;
+                    array.set_element(cx.env, idx, eku)?
                 }
 
                 array
             };
 
             let ocsp_response = match ocsp_response {
-                Some(b) => env.byte_array_from_slice(b)?,
-                None => JObject::null().into(),
+                Some(b) => cx.env.byte_array_from_slice(b)?,
+                None => JByteArray::null(),
             };
 
             #[cfg(any(test, feature = "ffi-testing"))]
             {
                 if let Some(mock_root) = &self.test_only_root_ca_override {
-                    let mock_root = env.byte_array_from_slice(mock_root)?;
-                    env.call_static_method(
-                        CERT_VERIFIER_CLASS.get(cx)?,
-                        "addMockRoot",
-                        "([B)V",
-                        &[JValue::from(&mock_root)],
-                    )?
-                    .v()
-                    .expect("failed to add test root")
+                    let mock_root = cx.env.byte_array_from_slice(mock_root)?;
+                    cx.env
+                        .call_static_method(
+                            cert_verifier_class,
+                            jni_str!("addMockRoot"),
+                            jni_sig!((byte[]) -> void),
+                            &[JValue::from(&mock_root)],
+                        )?
+                        .v()
+                        .expect("failed to add test root")
                 }
             }
 
-            const VERIFIER_CALL: &str = concat!(
-                '(',
-                "Landroid/content/Context;",
-                "Ljava/lang/String;",
-                "Ljava/lang/String;",
-                "[Ljava/lang/String;",
-                "[B",
-                'J',
-                "[[B",
-                ')',
-                "Lorg/rustls/platformverifier/VerificationResult;"
+            const VERIFIER_CALL: MethodSignature<'static, 'static> = jni_sig!(
+                (
+                    android.content.Context,
+                    JString,
+                    JString,
+                    JString[],
+                    byte[],
+                    jlong,
+                    byte[][]
+                ) -> org.rustls.platformverifier.VerificationResult
             );
 
-            let result = env
+            let server_name = cx.env.new_string(server_name.to_str())?;
+            let auth_type = cx.env.new_string(AUTH_TYPE)?;
+
+            let result = cx
+                .env
                 .call_static_method(
-                    CERT_VERIFIER_CLASS.get(cx)?,
-                    "verifyCertificateChain",
+                    cert_verifier_class,
+                    jni_str!("verifyCertificateChain"),
                     VERIFIER_CALL,
                     &[
-                        JValue::from(cx.application_context()),
-                        JValue::from(&env.new_string(server_name.to_str())?),
-                        JValue::from(&env.new_string(AUTH_TYPE)?),
+                        JValue::from(cx.global.context.as_ref()),
+                        JValue::from(&server_name),
+                        JValue::from(&auth_type),
                         JValue::from(&JObject::from(allowed_ekus)),
                         JValue::from(&ocsp_response),
                         JValue::Long(now),
@@ -190,7 +193,7 @@ impl Verifier {
                 )?
                 .l()?;
 
-            Ok(extract_result_info(env, result))
+            Ok(extract_result_info(cx.env, result))
         });
 
         match verification_result {
@@ -234,12 +237,9 @@ impl Verifier {
     }
 }
 
-fn extract_result_info(
-    env: &mut JNIEnv<'_>,
-    result: JObject<'_>,
-) -> (VerifierStatus, Option<String>) {
+fn extract_result_info(env: &mut Env<'_>, result: JObject<'_>) -> (VerifierStatus, Option<String>) {
     let status_code = env
-        .get_field(&result, "code", "I")
+        .get_field(&result, jni_str!("code"), jni_sig!(jint))
         .and_then(|code| code.i())
         .unwrap();
 
@@ -256,13 +256,15 @@ fn extract_result_info(
 
     // Extract the `String?`.
     let msg = env
-        .get_field(result, "message", "Ljava/lang/String;")
+        .get_field(result, jni_str!("message"), jni_sig!(java.lang.String))
         .and_then(|m| m.l())
         .map(|s| {
             if s.is_null() {
                 None
             } else {
-                JavaStr::from_env(env, &s.into()).ok().map(String::from)
+                env.cast_local::<JString>(s)
+                    .and_then(|s| s.try_to_string(env))
+                    .ok()
             }
         })
         .unwrap();
