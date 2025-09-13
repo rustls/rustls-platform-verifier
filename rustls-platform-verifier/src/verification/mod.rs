@@ -83,4 +83,4 @@ fn invalid_certificate(reason: impl Into<String>) -> rustls::Error {
 const ALLOWED_EKUS: &[windows_sys::core::PCSTR] =
     &[windows_sys::Win32::Security::Cryptography::szOID_PKIX_KP_SERVER_AUTH];
 #[cfg(target_os = "android")]
-pub const ALLOWED_EKUS: &[&str] = &["1.3.6.1.5.5.7.3.1"];
+pub const ALLOWED_EKUS: &[&std::ffi::CStr] = &[c"1.3.6.1.5.5.7.3.1"];
