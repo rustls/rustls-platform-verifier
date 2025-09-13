@@ -18,7 +18,7 @@ mod android {
     use jni::{
         objects::{JClass, JObject, JString},
         sys::jstring,
-        JNIEnv,
+        EnvUnowned, Outcome,
     };
     use std::sync::Once;
 
@@ -28,64 +28,48 @@ mod android {
     /// if a set of integration tests passed or not.
     const SUCCESS_MARKER: &str = "success";
 
-    fn run_android_test<'a>(
-        env: &'a mut JNIEnv,
+    fn run_android_test<'caller>(
+        env: &mut EnvUnowned<'caller>,
         cx: JObject,
         suite_name: &'static str,
         test_cases: &'static [fn()],
-    ) -> JString<'a> {
-        // These can't fail, and even if they did, Android will crash the process like we want.
-        ANDROID_INIT.call_once(|| {
-            let log_filter = android_logger::FilterBuilder::new()
-                .parse("trace")
-                .filter_module("jni", log::LevelFilter::Off)
-                .build();
+    ) -> JString<'caller> {
+        let outcome = env
+            .with_env(|env| {
+                // These can't fail, and even if they did, Android will crash the process like we want.
+                ANDROID_INIT.call_once(|| {
+                    let log_filter = android_logger::FilterBuilder::new()
+                        .parse("trace")
+                        .filter_module("jni", log::LevelFilter::Off)
+                        .build();
 
-            android_logger::init_once(
-                android_logger::Config::default()
-                    .with_max_level(log::Level::Trace.to_level_filter())
-                    .with_filter(log_filter),
-            );
-            crate::android::init_with_env(env, cx).unwrap();
-            std::panic::set_hook(Box::new(|info| {
-                let msg = if let Some(msg) = info.payload().downcast_ref::<&'static str>() {
-                    msg
-                } else if let Some(msg) = info.payload().downcast_ref::<String>() {
-                    msg.as_str()
-                } else {
-                    "no panic info available"
-                };
+                    android_logger::init_once(
+                        android_logger::Config::default()
+                            .with_max_level(log::Level::Trace.to_level_filter())
+                            .with_filter(log_filter),
+                    );
+                    crate::android::init_with_env(env, cx).unwrap();
+                });
 
-                log::error!("test panic: {}", msg)
-            }))
-        });
+                for test in test_cases {
+                    test();
+                }
 
-        let mut failed = false;
-        for test in test_cases.iter() {
-            // Use a dedicated thread so panics don't cause crashes.
-            if std::thread::spawn(test).join().is_err() {
-                failed = true;
-                log::error!("{}: test failed", suite_name);
-            } else {
-                log::info!("{}: test passed", suite_name);
+                env.new_string(SUCCESS_MARKER)
+            })
+            .into_outcome();
+
+        match outcome {
+            Outcome::Ok(success) => success,
+            Outcome::Err(_) | Outcome::Panic(_) => {
+                panic!("failed to run test suite '{suite_name}'")
             }
-
-            log::info!(
-                "-----------------------------------------------------------------------------"
-            )
         }
-
-        env.new_string(if failed {
-            "test failed!"
-        } else {
-            SUCCESS_MARKER
-        })
-        .unwrap()
     }
 
     #[export_name = "Java_org_rustls_platformverifier_CertificateVerifierTests_mockTests"]
     pub extern "C" fn rustls_platform_verifier_mock_test_suite(
-        mut env: JNIEnv,
+        mut env: EnvUnowned<'_>,
         _class: JClass,
         cx: JObject,
     ) -> jstring {
@@ -102,7 +86,7 @@ mod android {
 
     #[export_name = "Java_org_rustls_platformverifier_CertificateVerifierTests_verifyMockRootUsage"]
     pub extern "C" fn rustls_platform_verifier_verify_mock_root_usage(
-        mut env: JNIEnv,
+        mut env: EnvUnowned<'_>,
         _class: JClass,
         cx: JObject,
     ) -> jstring {
@@ -119,7 +103,7 @@ mod android {
 
     #[export_name = "Java_org_rustls_platformverifier_CertificateVerifierTests_realWorldTests"]
     pub extern "C" fn rustls_platform_verifier_real_world_test_suite(
-        mut env: JNIEnv,
+        mut env: EnvUnowned<'_>,
         _class: JClass,
         cx: JObject,
     ) -> jstring {
