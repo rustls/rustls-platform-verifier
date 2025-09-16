@@ -53,8 +53,8 @@ webpki-root-certs = "1"
 [target.'cfg(any(target_vendor = "apple"))'.dependencies]
 core-foundation = "0.10"
 core-foundation-sys = "0.8"
-security-framework = { version = "3", features = ["OSX_10_14"] }
-security-framework-sys = { version = "2.10", features = ["OSX_10_14"] }
+security-framework = "3.5.0"
+security-framework-sys = "2.15"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = ">=0.52.0, <0.60.0", default-features = false, features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
