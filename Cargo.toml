@@ -4,3 +4,6 @@ members = [
     "rustls-platform-verifier",
 ]
 resolver = "2"
+
+[patch."crates-io"]
+jni = { git = "https://github.com/jni-rs/jni-rs", branch = "release-0.22" }

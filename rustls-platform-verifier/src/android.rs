@@ -20,11 +20,12 @@
 //! ```
 
 use jni::errors::Error as JNIError;
-use jni::objects::{GlobalRef, JClass, JObject, JValue};
-use jni::{AttachGuard, JNIEnv, JavaVM};
+use jni::objects::{Global, JClass, JClassLoader, JObject};
+use jni::{Env, JavaVM};
 use once_cell::sync::OnceCell;
+use std::ffi::CStr;
 
-static GLOBAL: OnceCell<Global> = OnceCell::new();
+static GLOBAL: OnceCell<GlobalStorage> = OnceCell::new();
 
 /// A layer to access the Android runtime which is hosting the current
 /// application process.
@@ -37,85 +38,73 @@ pub trait Runtime: Send + Sync {
     /// Returns a reference to the current app's [Context].
     ///
     /// [Context]: <https://developer.android.com/reference/android/content/Context>
-    fn context(&self) -> &GlobalRef;
+    fn context(&self) -> &Global<JObject<'static>>;
     /// Returns a reference to the class returned by the current JVM's `getClassLoader` call.
-    fn class_loader(&self) -> &GlobalRef;
+    fn class_loader(&self) -> &Global<JClassLoader<'static>>;
 }
 
-enum Global {
+enum GlobalStorage {
     Internal {
         java_vm: JavaVM,
-        context: GlobalRef,
-        loader: GlobalRef,
+        context: Global<JObject<'static>>,
+        loader: Global<JClassLoader<'static>>,
     },
     External(&'static dyn Runtime),
 }
 
-impl Global {
-    fn env(&self) -> Result<AttachGuard<'_>, Error> {
-        let vm = match self {
-            Global::Internal { java_vm, .. } => java_vm,
-            Global::External(global) => global.java_vm(),
-        };
-        Ok(vm.attach_current_thread()?)
+impl GlobalStorage {
+    fn vm(&self) -> &JavaVM {
+        match self {
+            GlobalStorage::Internal { java_vm, .. } => java_vm,
+            GlobalStorage::External(runtime) => runtime.java_vm(),
+        }
     }
 
-    fn context(&self) -> Result<(GlobalContext, AttachGuard<'_>), Error> {
-        let env = self.env()?;
-
+    fn context(&self, env: &mut Env) -> Result<GlobalContext, Error> {
         let context = match self {
-            Global::Internal { context, .. } => context,
-            Global::External(global) => global.context(),
+            Self::Internal { context, .. } => context,
+            Self::External(global) => global.context(),
         };
 
         let loader = match self {
-            Global::Internal { loader, .. } => loader,
-            Global::External(global) => global.class_loader(),
+            Self::Internal { loader, .. } => loader,
+            Self::External(global) => global.class_loader(),
         };
 
-        Ok((
-            GlobalContext {
-                context: env.new_global_ref(context)?,
-                loader: env.new_global_ref(loader)?,
-            },
-            env,
-        ))
+        Ok(GlobalContext {
+            context: env.new_global_ref(context)?,
+            loader: env.new_global_ref(loader)?,
+        })
     }
 }
 
-struct GlobalContext {
-    context: GlobalRef,
-    loader: GlobalRef,
+pub(super) struct GlobalContext {
+    /// The Android application [Context](https://developer.android.com/reference/android/app/Application).
+    pub(super) context: Global<JObject<'static>>,
+    loader: Global<JClassLoader<'static>>,
 }
 
-fn global() -> &'static Global {
+fn global() -> &'static GlobalStorage {
     GLOBAL
         .get()
         .expect("Expect rustls-platform-verifier to be initialized")
 }
 
-/// Initialize given a typical Android NDK [`JNIEnv`] and [`JObject`] context.
+/// Initialize given a typical Android NDK [`Env`] and [`JObject`] context.
 ///
 /// This method will setup and store an environment locally. This is useful if nothing else in your
 /// application needs to access the Android runtime.
-pub fn init_with_env(env: &mut JNIEnv, context: JObject) -> Result<(), JNIError> {
+pub fn init_with_env(env: &mut Env, context: JObject) -> Result<(), JNIError> {
     GLOBAL.get_or_try_init(|| -> Result<_, JNIError> {
-        let loader =
-            env.call_method(&context, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?;
+        let loader = env.get_object_class(&context)?.get_class_loader(env)?;
 
-        Ok(Global::Internal {
-            java_vm: env.get_java_vm()?,
+        Ok(GlobalStorage::Internal {
+            java_vm: env.get_java_vm(),
             context: env.new_global_ref(context)?,
-            loader: env.new_global_ref(JObject::try_from(loader)?)?,
+            loader: env.new_global_ref(loader)?,
         })
     })?;
     Ok(())
-}
-
-/// *Deprecated*: This is the original method name for [`init_with_env`] and is functionally
-/// identical.
-pub fn init_hosted(env: &mut JNIEnv, context: JObject) -> Result<(), JNIError> {
-    init_with_env(env, context)
 }
 
 /// Initialize with a runtime that can dynamically serve references to
@@ -125,13 +114,7 @@ pub fn init_hosted(env: &mut JNIEnv, context: JObject) -> Result<(), JNIError> {
 ///
 /// This function will never panic.
 pub fn init_with_runtime(runtime: &'static dyn Runtime) {
-    GLOBAL.get_or_init(|| Global::External(runtime));
-}
-
-/// *Deprecated*: This is the original method name for [`init_with_runtime`] and is functionally
-/// identical.
-pub fn init_external(runtime: &'static dyn Runtime) {
-    init_with_runtime(runtime);
+    GLOBAL.get_or_init(|| GlobalStorage::External(runtime));
 }
 
 /// Initialize with references to the JVM, context, and class loader.
@@ -145,19 +128,25 @@ pub fn init_external(runtime: &'static dyn Runtime) {
 ///
 /// ```
 /// pub fn android_init(raw_env: *mut c_void, raw_context: *mut c_void) -> Result<(), jni::errors::Error> {
-///     let mut env = unsafe { jni::JNIEnv::from_raw(raw_env as *mut jni::sys::JNIEnv).unwrap() };
+///     let mut env = unsafe { jni::EnvUnowned::from_raw(raw_env as *mut jni::sys::JNIEnv).unwrap() };
 ///     let context = unsafe { JObject::from_raw(raw_context as jni::sys::jobject) };
-///     let loader = env.call_method(&context, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?;
+///     let loader = env.call_method(&context, c"getClassLoader", c"()Ljava/lang/ClassLoader;", &[])?;
 ///
-///     rustls_platform_verifier::android::init_with_refs(
-///         env.get_java_vm()?,
-///         env.new_global_ref(context)?,
-///         env.new_global_ref(JObject::try_from(loader)?)?,
-///     );
+///     env.with_env(|env| {
+///         rustls_platform_verifier::android::init_with_refs(
+///             env.get_java_vm(),
+///             env.new_global_ref(context)?,
+///             env.new_global_ref(JClassLoader::try_from(loader)?)?,
+///         );
+///     });
 /// }
 /// ```
-pub fn init_with_refs(java_vm: JavaVM, context: GlobalRef, loader: GlobalRef) {
-    GLOBAL.get_or_init(|| Global::Internal {
+pub fn init_with_refs(
+    java_vm: JavaVM,
+    context: Global<JObject<'static>>,
+    loader: Global<JClassLoader<'static>>,
+) {
+    GLOBAL.get_or_init(|| GlobalStorage::Internal {
         java_vm,
         context,
         loader,
@@ -173,12 +162,15 @@ impl From<JNIError> for Error {
     #[track_caller]
     fn from(cause: JNIError) -> Self {
         if let JNIError::JavaException = cause {
-            if let Ok(env) = global().env() {
-                // These should not fail if we are already in a throwing state unless
-                // things are very broken. In that case, there isn't much we can do.
-                let _ = env.exception_describe();
-                let _ = env.exception_clear();
-            }
+            // SAFETY: We do not retain the `AttachGuard`, do not have access to the previous guard/env from
+            // whichever JNI call errored before claling this function, and therefore don't unsafely mutate it.
+            if let Ok(mut env) = unsafe { global().vm().get_env_attachment() } {
+                let _ = env.with_env_current_frame(|env| {
+                    env.exception_describe();
+                    env.exception_clear();
+                    Ok::<_, Error>(())
+                });
+            };
         }
 
         Self
@@ -186,9 +178,8 @@ impl From<JNIError> for Error {
 }
 
 pub(super) struct LocalContext<'a, 'env> {
-    env: &'a mut JNIEnv<'env>,
-    context: GlobalRef,
-    loader: GlobalRef,
+    pub(super) env: &'a mut Env<'env>,
+    pub(super) global: GlobalContext,
 }
 
 impl<'a, 'env> LocalContext<'a, 'env> {
@@ -196,22 +187,11 @@ impl<'a, 'env> LocalContext<'a, 'env> {
     ///
     /// This should be used instead of `JNIEnv::find_class` to ensure all classes
     /// in the application can be found.
-    fn load_class(&mut self, name: &str) -> Result<JClass<'env>, Error> {
-        let name = self.env.new_string(name)?;
-        let class = self.env.call_method(
-            &self.loader,
-            "loadClass",
-            "(Ljava/lang/String;)Ljava/lang/Class;",
-            &[JValue::from(&name)],
-        )?;
-
-        Ok(JObject::try_from(class)?.into())
-    }
-
-    /// Borrow the `applicationContext` from the Android application
-    /// <https://developer.android.com/reference/android/app/Application>
-    pub(super) fn application_context(&self) -> &JObject<'_> {
-        &self.context
+    fn load_class(&mut self, name: &'static CStr) -> Result<JClass<'env>, Error> {
+        self.global
+            .loader
+            .load_class(name.as_ref(), self.env)
+            .map_err(Error::from)
     }
 }
 
@@ -220,37 +200,28 @@ impl<'a, 'env> LocalContext<'a, 'env> {
 /// are cleared.
 pub(super) fn with_context<F, T: 'static>(f: F) -> Result<T, Error>
 where
-    F: FnOnce(&mut LocalContext, &mut JNIEnv) -> Result<T, Error>,
+    F: FnOnce(&mut LocalContext) -> Result<T, Error>,
 {
-    let (global_context, mut binding_env) = global().context()?;
-    // SAFETY: Any local references created with this env are always destroyed prior to the parent
-    // frame exiting because we force it to be dropped before the new frame exits and don't allow
-    // the closure to access the env directly. We don't use it anywhere outside that sub-scope either.
-    //
-    // Rust's borrowing rules enforce that any reference that came from this env must be dropped before it is too.
-    let ctx_env = unsafe { binding_env.unsafe_clone() };
-
-    // 16 is the default capacity in the JVM, we can make this configurable if necessary
-    binding_env.with_local_frame(16, |env| {
-        let mut ctx_env = ctx_env;
+    let global = global();
+    global.vm().attach_current_thread_for_scope(|env| {
+        let global_context = global.context(env)?;
         let mut context = LocalContext {
-            env: &mut ctx_env,
-            context: global_context.context,
-            loader: global_context.loader,
+            env,
+            global: global_context,
         };
-        f(&mut context, env)
+        f(&mut context)
     })
 }
 
 /// Loads and caches a class on first use
 pub(super) struct CachedClass {
-    name: &'static str,
-    class: OnceCell<GlobalRef>,
+    name: &'static CStr,
+    class: OnceCell<Global<JClass<'static>>>,
 }
 
 impl CachedClass {
     /// Creates a lazily initialized class reference to the class with `name`.
-    pub(super) const fn new(name: &'static str) -> Self {
+    pub(super) const fn new(name: &'static CStr) -> Self {
         Self {
             name,
             class: OnceCell::new(),
@@ -258,13 +229,13 @@ impl CachedClass {
     }
 
     /// Gets the cached class reference, loaded on first use
-    pub(super) fn get(&self, cx: &mut LocalContext) -> Result<&JClass<'_>, Error> {
+    pub(super) fn get(&self, cx: &mut LocalContext) -> Result<&JClass<'static>, Error> {
         let class = self.class.get_or_try_init(|| -> Result<_, Error> {
             let class = cx.load_class(self.name)?;
 
             Ok(cx.env.new_global_ref(class)?)
         })?;
 
-        Ok(class.as_obj().into())
+        Ok(class)
     }
 }

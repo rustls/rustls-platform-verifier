@@ -2,7 +2,7 @@
 
 [![crates.io version](https://img.shields.io/crates/v/rustls-platform-verifier.svg)](https://crates.io/crates/rustls-platform-verifier)
 [![crate documentation](https://docs.rs/rustls-platform-verifier/badge.svg)](https://docs.rs/rustls-platform-verifier)
-![MSRV](https://img.shields.io/badge/rustc-1.64+-blue.svg)
+![MSRV](https://img.shields.io/badge/rustc-1.77+-blue.svg)
 [![crates.io downloads](https://img.shields.io/crates/d/rustls-platform-verifier.svg)](https://crates.io/crates/rustls-platform-verifier)
 ![CI](https://github.com/1Password/rustls-platform-verifier/workflows/CI/badge.svg)
 
