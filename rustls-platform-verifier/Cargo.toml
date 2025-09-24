@@ -29,7 +29,7 @@ cert-logging = ["base64"]
 docsrs = ["jni", "once_cell"]
 
 [dependencies]
-rustls = { version = "0.23.27", default-features = false, features = ["std"] }
+rustls = { git = "https://github.com/rustls/rustls.git", rev = "30f3753a70c3b138841675b6381c0b63a3005414", default-features = false, features = ["std"] }
 log = { version = "0.4" }
 base64 = { version = "0.22", optional = true } # Only used when the `cert-logging` feature is enabled.
 jni = { version = "0.21", default-features = false, optional = true } # Only used during doc generation
@@ -60,7 +60,7 @@ security-framework-sys = "2.15"
 windows-sys = { version = ">=0.52.0, <0.60.0", default-features = false, features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
 
 [dev-dependencies]
-rustls = { version = "0.23", default-features = false, features = ["ring"] }
+rustls = { git = "https://github.com/rustls/rustls.git", rev = "30f3753a70c3b138841675b6381c0b63a3005414", default-features = false, features = ["ring"] }
 webpki-root-certs = "1"
 
 [package.metadata.docs.rs]
