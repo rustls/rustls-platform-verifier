@@ -11,9 +11,6 @@ rust-version = "1.71.0"
 
 [lib]
 name = "rustls_platform_verifier"
-# Note: The `cdylib` specification is for testing only. The shared library
-# is not expected to have a stable API.
-crate-type = ["cdylib", "rlib"]
 
 [features]
 # Enables a C interface to use for testing where `cargo` can't be used.
