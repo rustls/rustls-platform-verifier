@@ -55,6 +55,7 @@ pub struct Verifier {
 impl Verifier {
     /// Creates a new instance of a TLS certificate verifier that utilizes the Apple certificate
     /// facilities.
+    #[cfg_attr(docsrs, doc(cfg(all())))]
     pub fn new(crypto_provider: Arc<CryptoProvider>) -> Result<Self, TlsError> {
         Ok(Self {
             extra_roots: Vec::new(),
@@ -68,6 +69,7 @@ impl Verifier {
     /// facilities with the addition of extra root certificates to trust.
     ///
     /// See [Verifier::new] for the external requirements the verifier needs.
+    #[cfg_attr(docsrs, doc(cfg(not(target_os = "android"))))]
     pub fn new_with_extra_roots(
         roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
         crypto_provider: Arc<CryptoProvider>,
@@ -240,6 +242,7 @@ impl Verifier {
     }
 }
 
+#[cfg_attr(docsrs, doc(cfg(all())))]
 impl ServerCertVerifier for Verifier {
     fn verify_server_cert(
         &self,
