@@ -10,7 +10,7 @@ on our mock CA and the certificates issued by it. As such, they will expire abou
 
 Thankfully, updating these has become easy:
 - If the `verification_real_world` tests are failing, do the following:
-    1. Run `cargo run --example update-certs.rs`
+    1. Run `cargo run --example update-certs`
     2. Using your tool of choice, update the hardcoded time in `verification_time` to match the current datetime.
     3. Commit your changes and push up a fix branch/PR.
 - If the `verification_mock` tests are failing, do the following:
