@@ -64,6 +64,7 @@ impl Drop for Verifier {
 impl Verifier {
     /// Creates a new instance of a TLS certificate verifier that utilizes the
     /// Android certificate facilities.
+    #[cfg_attr(docsrs, doc(cfg(all())))]
     pub fn new(crypto_provider: Arc<CryptoProvider>) -> Result<Self, TlsError> {
         Ok(Self {
             #[cfg(any(test, feature = "ffi-testing"))]
@@ -268,6 +269,7 @@ fn extract_result_info(
     (status, msg)
 }
 
+#[cfg_attr(docsrs, doc(cfg(all())))]
 impl ServerCertVerifier for Verifier {
     fn verify_server_cert(
         &self,

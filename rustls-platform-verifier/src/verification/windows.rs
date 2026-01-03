@@ -522,6 +522,7 @@ pub struct Verifier {
 impl Verifier {
     /// Creates a new instance of a TLS certificate verifier that utilizes the
     /// Windows certificate facilities.
+    #[cfg_attr(docsrs, doc(cfg(all())))]
     pub fn new(crypto_provider: Arc<CryptoProvider>) -> Result<Self, TlsError> {
         Ok(Self {
             #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
@@ -533,6 +534,7 @@ impl Verifier {
 
     /// Creates a new instance of a TLS certificate verifier that utilizes the
     /// Windows certificate facilities and augmented by the provided extra root certificates.
+    #[cfg_attr(docsrs, doc(cfg(not(target_os = "android"))))]
     pub fn new_with_extra_roots(
         roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
         crypto_provider: Arc<CryptoProvider>,
@@ -660,6 +662,7 @@ impl Verifier {
     }
 }
 
+#[cfg_attr(docsrs, doc(cfg(all())))]
 impl ServerCertVerifier for Verifier {
     fn verify_server_cert(
         &self,

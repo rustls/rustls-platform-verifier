@@ -27,6 +27,7 @@ pub struct Verifier {
 impl Verifier {
     /// Creates a new verifier whose certificate validation is provided by
     /// WebPKI, using root certificates provided by the platform.
+    #[cfg_attr(docsrs, doc(cfg(all())))]
     pub fn new(crypto_provider: Arc<CryptoProvider>) -> Result<Self, TlsError> {
         Self::new_inner([], None, crypto_provider)
     }
@@ -34,6 +35,7 @@ impl Verifier {
     /// Creates a new verifier whose certificate validation is provided by
     /// WebPKI, using root certificates provided by the platform and augmented by
     /// the provided extra root certificates.
+    #[cfg_attr(docsrs, doc(cfg(not(target_os = "android"))))]
     pub fn new_with_extra_roots(
         extra_roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
         crypto_provider: Arc<CryptoProvider>,
@@ -130,6 +132,7 @@ impl Verifier {
     }
 }
 
+#[cfg_attr(docsrs, doc(cfg(all())))]
 impl ServerCertVerifier for Verifier {
     fn verify_server_cert(
         &self,
