@@ -14,13 +14,9 @@ use super::log_server_cert;
 /// A TLS certificate verifier that uses the system's root store and WebPKI.
 #[derive(Debug)]
 pub struct Verifier {
-    // We use a `OnceCell` so we only need
-    // to try loading native root certs once per verifier.
-    //
     // We currently keep one set of certificates per-verifier so that
-    // locking and unlocking the application will pull fresh root
-    // certificates from disk, picking up on any changes
-    // that might have been made since.
+    // recreating the verifier will pull fresh root certificates from disk,
+    // picking up on any changes that might have been made since.
     inner: Arc<WebPkiServerVerifier>,
 }
 
