@@ -69,12 +69,12 @@ const VALID_AWS_AMAZON_COM_CHAIN: &[&[u8]] = &[
 fn valid_aws_chain_names() -> Vec<String> {
     const VALID_AWS_NAMES: &[&str] = &[
         "aws.amazon.com",
-        "www.aws.amazon.com",
-        "aws-us-east-1.amazon.com",
         "aws-us-west-2.amazon.com",
+        "www.aws.amazon.com",
+        "1.aws-lbr.amazonaws.com",
         "amazonaws-china.com",
         "www.amazonaws-china.com",
-        "1.aws-lbr.amazonaws.com",
+        "aws-us-east-1.amazon.com",
     ];
 
     VALID_AWS_NAMES
