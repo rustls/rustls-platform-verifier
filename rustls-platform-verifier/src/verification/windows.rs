@@ -43,21 +43,21 @@ use windows_sys::Win32::{
         CertFreeCertificateChain, CertFreeCertificateChainEngine, CertFreeCertificateContext,
         CertGetCertificateChain, CertOpenStore, CertSetCertificateContextProperty,
         CertVerifyCertificateChainPolicy, HTTPSPolicyCallbackData, AUTHTYPE_SERVER,
-        CERT_CHAIN_CACHE_END_CERT, CERT_CHAIN_CONTEXT, CERT_CHAIN_ENGINE_CONFIG,
+        CERT_CHAIN_CACHE_END_CERT, CERT_CHAIN_CONTEXT,
         CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS, CERT_CHAIN_POLICY_PARA,
         CERT_CHAIN_POLICY_SSL, CERT_CHAIN_POLICY_STATUS,
         CERT_CHAIN_REVOCATION_ACCUMULATIVE_TIMEOUT, CERT_CHAIN_REVOCATION_CHECK_END_CERT,
         CERT_CONTEXT, CERT_OCSP_RESPONSE_PROP_ID, CERT_SET_PROPERTY_IGNORE_PERSIST_ERROR_FLAG,
         CERT_STORE_ADD_ALWAYS, CERT_STORE_DEFER_CLOSE_UNTIL_LAST_FREE_FLAG, CERT_STORE_PROV_MEMORY,
         CERT_STRONG_SIGN_PARA, CERT_TRUST_IS_PARTIAL_CHAIN, CERT_USAGE_MATCH, CRYPT_INTEGER_BLOB,
-        CTL_USAGE, USAGE_MATCH_TYPE_AND, X509_ASN_ENCODING,
+        CTL_USAGE, HCERTSTORE, USAGE_MATCH_TYPE_AND, X509_ASN_ENCODING,
     },
 };
 
 use super::{log_server_cert, ALLOWED_EKUS};
 
 // The `windows-sys` definition for `CERT_CHAIN_PARA` does not take old OS versions
-// into account so we define it ourselves for better (hypothetical) OS backwards compat.
+// into account so we define it ourselves for better OS backwards compat.
 // In the future a compile-time size assertion can be added against the upstream type to help stay in sync.
 #[allow(non_camel_case_types, non_snake_case)]
 #[repr(C)]
@@ -75,6 +75,29 @@ struct CERT_CHAIN_PARA {
     pub pStrongSignPara: *const CERT_STRONG_SIGN_PARA,
     #[cfg(not(target_vendor = "win7"))]
     pub dwStrongSignFlags: u32,
+}
+
+// Same workaround with CERT_CHAIN_PARA
+#[allow(non_camel_case_types, non_snake_case)]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct CERT_CHAIN_ENGINE_CONFIG {
+    pub cbSize: u32,
+    pub hRestrictedRoot: HCERTSTORE,
+    pub hRestrictedTrust: HCERTSTORE,
+    pub hRestrictedOther: HCERTSTORE,
+    pub cAdditionalStore: u32,
+    pub rghAdditionalStore: *mut HCERTSTORE,
+    pub dwFlags: u32,
+    pub dwUrlRetrievalTimeout: u32,
+    pub MaximumCachedCertificates: u32,
+    pub CycleDetectionModulus: u32,
+    pub hExclusiveRoot: HCERTSTORE,
+    pub hExclusiveTrustedPeople: HCERTSTORE,
+    // XXX: `dwExclusiveFlags` started being available in Windows 8 and Windows Server 2012
+    // See https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-cert_chain_engine_config
+    #[cfg(not(target_vendor = "win7"))]
+    pub dwExclusiveFlags: u32,
 }
 
 use crate::verification::invalid_certificate;
@@ -231,8 +254,13 @@ impl CertEngine {
         config.hExclusiveRoot = exclusive_store.inner.as_ptr();
 
         let mut engine = EnginePtr::NULL;
+
+        // XXX: Due to the redefinition of `CERT_CHAIN_ENGINE_CONFIG`, we need to do pointer casts
+        // in order to pass our expanded structure into `CertCreateCertificateChainEngine`.
+        // See also `CERT_CHAIN_PARA` casting below.
+        let config = NonNull::from(&config).cast().as_ptr();
         // SAFETY: `engine` is valid to be written to and the config is valid to be read.
-        let res = unsafe { CertCreateCertificateChainEngine(&config, &mut engine) };
+        let res = unsafe { CertCreateCertificateChainEngine(config, &mut engine) };
 
         #[allow(clippy::as_conversions)]
         let engine = call_with_last_error(|| match NonNull::new(engine as *mut c_void) {
@@ -265,8 +293,10 @@ impl CertEngine {
         config.hExclusiveRoot = root_store.inner.as_ptr();
 
         let mut engine = EnginePtr::NULL;
+        // Same workaround with as above when creating the engine.
+        let config = NonNull::from(&config).cast().as_ptr();
         // SAFETY: `engine` is valid to be written to and the config is valid to be read.
-        let res = unsafe { CertCreateCertificateChainEngine(&config, &mut engine) };
+        let res = unsafe { CertCreateCertificateChainEngine(config, &mut engine) };
 
         #[allow(clippy::as_conversions)]
         let engine = call_with_last_error(|| match NonNull::new(engine as *mut c_void) {
