@@ -49,8 +49,9 @@ use windows_sys::Win32::{
         CERT_CHAIN_REVOCATION_ACCUMULATIVE_TIMEOUT, CERT_CHAIN_REVOCATION_CHECK_END_CERT,
         CERT_CONTEXT, CERT_OCSP_RESPONSE_PROP_ID, CERT_SET_PROPERTY_IGNORE_PERSIST_ERROR_FLAG,
         CERT_STORE_ADD_ALWAYS, CERT_STORE_DEFER_CLOSE_UNTIL_LAST_FREE_FLAG, CERT_STORE_PROV_MEMORY,
-        CERT_STRONG_SIGN_PARA, CERT_TRUST_IS_PARTIAL_CHAIN, CERT_USAGE_MATCH, CRYPT_INTEGER_BLOB,
-        CTL_USAGE, HCERTSTORE, USAGE_MATCH_TYPE_AND, X509_ASN_ENCODING,
+        CERT_STRONG_SIGN_PARA, CERT_TRUST_IS_PARTIAL_CHAIN, CERT_TRUST_IS_UNTRUSTED_ROOT,
+        CERT_USAGE_MATCH, CRYPT_INTEGER_BLOB, CTL_USAGE, HCERTSTORE, USAGE_MATCH_TYPE_AND,
+        X509_ASN_ENCODING,
     },
 };
 
@@ -648,15 +649,16 @@ impl Verifier {
 
         // We only use `TrustStatus` here because it hasn't had verification performed on it.
         // SAFETY: The pointer is guaranteed to be non-null.
-        let is_partial_chain = unsafe { *cert_chain.inner.as_ptr() }
+        let cert_error_status = unsafe { *cert_chain.inner.as_ptr() }
             .TrustStatus
-            .dwErrorStatus
-            & CERT_TRUST_IS_PARTIAL_CHAIN
-            != 0;
+            .dwErrorStatus;
+
+        let extra_roots_may_needed =
+            (cert_error_status & (CERT_TRUST_IS_PARTIAL_CHAIN | CERT_TRUST_IS_UNTRUSTED_ROOT)) != 0;
 
         // If we have extra roots and building the chain gave us an error, we try to build a
         // new one with the extra roots.
-        if is_partial_chain && self.extra_roots.is_some() {
+        if extra_roots_may_needed && self.extra_roots.is_some() {
             let mut store = CertificateStore::new()?;
 
             for cert in intermediate_certs.iter().copied() {
