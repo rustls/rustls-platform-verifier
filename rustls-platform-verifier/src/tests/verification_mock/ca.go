@@ -69,7 +69,7 @@ func doIt() error {
 
 	var err error = nil
 
-	root1_key, err := generateRoot("root1", now)
+	root1_key, err := generateRoot("root1", now, "")
 	if err != nil {
 		return err
 	}
@@ -94,6 +94,11 @@ func doIt() error {
 		if err != nil {
 			return err
 		}
+	}
+
+	_, err = generateRoot("root2", now, "example.com")
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -210,11 +215,12 @@ func generateInt(intName string, serial int64, now time.Time, caKey crypto.Signe
 	return intKey, nil
 }
 
-func generateRoot(name string, now time.Time) (crypto.Signer, error) {
+func generateRoot(name string, now time.Time, commonName string) (crypto.Signer, error) {
 	caKey, err := generateKey()
 	if err != nil {
 		return nil, err
 	}
+
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
@@ -225,6 +231,14 @@ func generateRoot(name string, now time.Time) (crypto.Signer, error) {
 		IsCA:                  true,
 		KeyUsage:              x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
+	}
+
+	if len(commonName) != 0 {
+		template.Subject.CommonName = commonName
+		template.KeyUsage = 0
+		// See `generateEndEntity` for list of macOS requirements.
+		template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+		template.DNSNames = []string{commonName}
 	}
 
 	cert, err := x509.CreateCertificate(rand.Reader, &template, &template, caKey.Public(), caKey)
