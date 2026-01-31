@@ -28,7 +28,7 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 use std::sync::Arc;
 
 use rustls::client::danger::ServerCertVerifier;
-use rustls::pki_types;
+use rustls::pki_types::{self, CertificateDer};
 #[cfg(not(any(target_vendor = "apple", windows)))]
 use rustls::pki_types::{DnsName, ServerName};
 use rustls::{CertificateError, Error as TlsError, OtherError};
@@ -80,12 +80,20 @@ macro_rules! no_error {
     };
 }
 
-const ROOT1: pki_types::CertificateDer<'static> =
-    pki_types::CertificateDer::from_slice(include_bytes!("root1.crt"));
+const ROOT1: CertificateDer = CertificateDer::from_slice(include_bytes!("root1.crt"));
 const ROOT1_INT1: &[u8] = include_bytes!("root1-int1.crt");
 const ROOT1_INT1_EXAMPLE_COM_GOOD: &[u8] = include_bytes!("root1-int1-ee_example.com-good.crt");
 const ROOT1_INT1_LOCALHOST_IPV4_GOOD: &[u8] = include_bytes!("root1-int1-ee_127.0.0.1-good.crt");
 const ROOT1_INT1_LOCALHOST_IPV6_GOOD: &[u8] = include_bytes!("root1-int1-ee_1-good.crt");
+
+// `ffi-testing` is currently only used for Android, which doesn't support extra roots yet.
+#[cfg_attr(feature = "ffi-testing", allow(unused))]
+#[cfg(not(target_os = "android"))]
+const ROOT2: CertificateDer = CertificateDer::from_slice(include_bytes!("root2.crt"));
+
+#[cfg_attr(feature = "ffi-testing", allow(unused))]
+#[cfg(not(target_os = "android"))]
+const ROOT3: CertificateDer = CertificateDer::from_slice(include_bytes!("root3.crt"));
 
 const EXAMPLE_COM: &str = "example.com";
 const LOCALHOST_IPV4: &str = "127.0.0.1";
@@ -111,8 +119,8 @@ pub(super) fn verification_without_mock_root() {
     let verifier = Verifier::new(crypto_provider).unwrap();
 
     let server_name = pki_types::ServerName::try_from(EXAMPLE_COM).unwrap();
-    let end_entity = pki_types::CertificateDer::from(ROOT1_INT1_EXAMPLE_COM_GOOD);
-    let intermediates = [pki_types::CertificateDer::from(ROOT1_INT1)];
+    let end_entity = CertificateDer::from(ROOT1_INT1_EXAMPLE_COM_GOOD);
+    let intermediates = [CertificateDer::from(ROOT1_INT1)];
 
     // Fails because the server cert has no trust root in Windows, and can't since it uses a self-signed CA.
     // Similarly on UNIX platforms using the Webpki verifier, it can't fetch extra certificates through
@@ -137,6 +145,77 @@ pub(super) fn verification_without_mock_root() {
 #[test]
 fn test_verification_without_mock_root() {
     verification_without_mock_root()
+}
+
+#[cfg(not(target_os = "android"))]
+#[test]
+fn test_selfsigned_cert_with_extra_roots() {
+    let crypto_provider = test_provider();
+
+    let selfsigned = ROOT2;
+    let selfsigned_as_leaf = ROOT3;
+    let roots = vec![selfsigned.clone(), selfsigned_as_leaf.clone()];
+    let server_name = pki_types::ServerName::try_from(EXAMPLE_COM).unwrap();
+
+    let verifier = Verifier::new_with_extra_roots(roots, crypto_provider).unwrap();
+
+    let result =
+        verifier.verify_server_cert(&selfsigned, &[], &server_name, &[], verification_time());
+
+    #[cfg(target_vendor = "apple")]
+    assert!(
+        result.is_ok(),
+        "failed to validate self-signed ca certificate"
+    );
+
+    #[cfg(not(target_vendor = "apple"))]
+    assert!(
+        result.is_err(),
+        "self-signed ca certificate is accepted unexpectly"
+    );
+
+    let result = verifier.verify_server_cert(
+        &selfsigned_as_leaf,
+        &[],
+        &server_name,
+        &[],
+        verification_time(),
+    );
+
+    #[cfg(not(target_os = "windows"))]
+    assert!(
+        result.is_ok(),
+        "failed to validate self-signed leaf certificate"
+    );
+
+    #[cfg(target_os = "windows")]
+    assert!(
+        result.is_err(),
+        "self-signed leaf certificate is accepted unexpectly"
+    );
+}
+
+#[cfg(not(target_os = "android"))]
+#[test]
+fn test_chain_signed_with_extra_roots() {
+    let crypto_provider = test_provider();
+
+    let server_name = pki_types::ServerName::try_from(EXAMPLE_COM).unwrap();
+    let end_entity = CertificateDer::from(ROOT1_INT1_EXAMPLE_COM_GOOD);
+    let intermediates = [CertificateDer::from(ROOT1_INT1)];
+    let roots = vec![ROOT1];
+
+    let verifier = Verifier::new_with_extra_roots(roots, crypto_provider).unwrap();
+
+    verifier
+        .verify_server_cert(
+            &end_entity,
+            &intermediates,
+            &server_name,
+            &[],
+            verification_time(),
+        )
+        .expect("failed to validate extra root-only certificate chain");
 }
 
 // Note: Android does not currently support IP address hosts, so these tests are disabled for
@@ -349,10 +428,10 @@ fn test_with_mock_root<E: std::error::Error + PartialEq + 'static>(
     let mut chain = test_case
         .chain
         .iter()
-        .map(|bytes| pki_types::CertificateDer::from(*bytes));
+        .map(|bytes| CertificateDer::from(*bytes));
 
     let end_entity = chain.next().unwrap();
-    let intermediates: Vec<pki_types::CertificateDer<'_>> = chain.collect();
+    let intermediates: Vec<CertificateDer<'_>> = chain.collect();
 
     let server_name = pki_types::ServerName::try_from(test_case.reference_id).unwrap();
 
