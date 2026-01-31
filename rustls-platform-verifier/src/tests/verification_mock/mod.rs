@@ -95,6 +95,10 @@ const ROOT2: CertificateDer = CertificateDer::from_slice(include_bytes!("root2.c
 #[cfg(not(target_os = "android"))]
 const ROOT3: CertificateDer = CertificateDer::from_slice(include_bytes!("root3.crt"));
 
+#[cfg_attr(feature = "ffi-testing", allow(unused))]
+#[cfg(not(target_os = "android"))]
+const ROOT4: CertificateDer = CertificateDer::from_slice(include_bytes!("root4.crt"));
+
 const EXAMPLE_COM: &str = "example.com";
 const LOCALHOST_IPV4: &str = "127.0.0.1";
 const LOCALHOST_IPV6: &str = "::1";
@@ -154,7 +158,12 @@ fn test_selfsigned_cert_with_extra_roots() {
 
     let selfsigned = ROOT2;
     let selfsigned_as_leaf = ROOT3;
-    let roots = vec![selfsigned.clone(), selfsigned_as_leaf.clone()];
+    let selfsigned_as_leaf_long_validity = ROOT4;
+    let roots = vec![
+        selfsigned.clone(),
+        selfsigned_as_leaf.clone(),
+        selfsigned_as_leaf_long_validity.clone(),
+    ];
     let server_name = pki_types::ServerName::try_from(EXAMPLE_COM).unwrap();
 
     let verifier = Verifier::new_with_extra_roots(roots, crypto_provider).unwrap();
@@ -192,6 +201,26 @@ fn test_selfsigned_cert_with_extra_roots() {
     assert!(
         result.is_err(),
         "self-signed leaf certificate is accepted unexpectly"
+    );
+
+    let result = verifier.verify_server_cert(
+        &selfsigned_as_leaf_long_validity,
+        &[],
+        &server_name,
+        &[],
+        verification_time(),
+    );
+
+    #[cfg(target_vendor = "apple")]
+    assert!(
+        result.is_err(),
+        "self-signed leaf certificate with long validity period is accepted unexpectly"
+    );
+
+    #[cfg(not(target_vendor = "apple"))]
+    assert!(
+        result.is_ok(),
+        "failed to validate self-signed leaf certificate with long validity period"
     );
 }
 

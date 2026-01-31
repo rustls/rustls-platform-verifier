@@ -69,7 +69,7 @@ func doIt() error {
 
 	var err error = nil
 
-	root1_key, err := generateRoot("root1", now, "", true)
+	root1_key, err := generateRoot("root1", now, "", true, 365)
 	if err != nil {
 		return err
 	}
@@ -96,12 +96,17 @@ func doIt() error {
 		}
 	}
 
-	_, err = generateRoot("root2", now, "example.com", true)
+	_, err = generateRoot("root2", now, "example.com", true, 365)
 	if err != nil {
 		return err
 	}
 
-	_, err = generateRoot("root3", now, "example.com", false)
+	_, err = generateRoot("root3", now, "example.com", false, 365)
+	if err != nil {
+		return err
+	}
+
+	_, err = generateRoot("root4", now, "example.com", false, 1000)
 	if err != nil {
 		return err
 	}
@@ -220,7 +225,7 @@ func generateInt(intName string, serial int64, now time.Time, caKey crypto.Signe
 	return intKey, nil
 }
 
-func generateRoot(name string, now time.Time, commonName string, IsCA bool) (crypto.Signer, error) {
+func generateRoot(name string, now time.Time, commonName string, IsCA bool, validDays int64) (crypto.Signer, error) {
 	caKey, err := generateKey()
 	if err != nil {
 		return nil, err
@@ -232,7 +237,7 @@ func generateRoot(name string, now time.Time, commonName string, IsCA bool) (cry
 			Organization: []string{name},
 		},
 		NotBefore:             now.Add(-OneDay),
-		NotAfter:              now.Add(OneYear),
+		NotAfter:              now.Add(time.Duration(validDays) * 24 * time.Hour),
 		IsCA:                  IsCA,
 		KeyUsage:              x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
