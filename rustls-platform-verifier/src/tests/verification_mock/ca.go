@@ -69,7 +69,7 @@ func doIt() error {
 
 	var err error = nil
 
-	root1_key, err := generateRoot("root1", now)
+	root1_key, err := generateRoot("root1", now, "", true, 365)
 	if err != nil {
 		return err
 	}
@@ -94,6 +94,21 @@ func doIt() error {
 		if err != nil {
 			return err
 		}
+	}
+
+	_, err = generateRoot("root2", now, "example.com", true, 365)
+	if err != nil {
+		return err
+	}
+
+	_, err = generateRoot("root3", now, "example.com", false, 365)
+	if err != nil {
+		return err
+	}
+
+	_, err = generateRoot("root4", now, "example.com", false, 1000)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -210,21 +225,30 @@ func generateInt(intName string, serial int64, now time.Time, caKey crypto.Signe
 	return intKey, nil
 }
 
-func generateRoot(name string, now time.Time) (crypto.Signer, error) {
+func generateRoot(name string, now time.Time, commonName string, IsCA bool, validDays int64) (crypto.Signer, error) {
 	caKey, err := generateKey()
 	if err != nil {
 		return nil, err
 	}
+
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
 			Organization: []string{name},
 		},
 		NotBefore:             now.Add(-OneDay),
-		NotAfter:              now.Add(OneYear),
-		IsCA:                  true,
+		NotAfter:              now.Add(time.Duration(validDays) * 24 * time.Hour),
+		IsCA:                  IsCA,
 		KeyUsage:              x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
+	}
+
+	if len(commonName) != 0 {
+		template.Subject.CommonName = commonName
+		template.KeyUsage = 0
+		// See `generateEndEntity` for list of macOS requirements.
+		template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+		template.DNSNames = []string{commonName}
 	}
 
 	cert, err := x509.CreateCertificate(rand.Reader, &template, &template, caKey.Public(), caKey)
