@@ -211,13 +211,13 @@ fn test_selfsigned_cert_with_extra_roots() {
         verification_time(),
     );
 
-    #[cfg(target_vendor = "apple")]
+    #[cfg(any(target_vendor = "apple", target_os = "windows"))]
     assert!(
         result.is_err(),
         "self-signed leaf certificate with long validity period is accepted unexpectly"
     );
 
-    #[cfg(not(target_vendor = "apple"))]
+    #[cfg(not(any(target_vendor = "apple", target_os = "windows")))]
     assert!(
         result.is_ok(),
         "failed to validate self-signed leaf certificate with long validity period"
