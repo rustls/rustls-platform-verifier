@@ -113,7 +113,8 @@ let config = ClientConfig::builder_with_provider(arc_crypto_provider)
 ### Android
 Some manual setup is required, outside of `cargo`, to use this crate on Android. In order to
 use Android's certificate verifier, the crate needs to call into the JVM. A small Kotlin
-component must be included in your app's build to support `rustls-platform-verifier`.
+component must be included in your app's build to support `rustls-platform-verifier`. If distributing a library, that component will need to be bundled into your release jar
+[as it is not yet available on Maven](https://github.com/rustls/rustls-platform-verifier/issues/115).
 
 #### Gradle Setup
 
@@ -123,6 +124,10 @@ Kotlin scripts (`.gradle.kts`) for configuration instead, an example snippet is 
 
 Inside of your project's `build.gradle` file, add the following code and Maven repository definition. If applicable, this should only be the one "app" sub-project that
 will actually be using this crate at runtime. With multiple projects running this, your Gradle configuration performance may degrade.
+
+<details>
+
+<summary>App Snippets</summary>
 
 `$PATH_TO_DEPENDENT_CRATE` is the relative path to the Cargo manifest (`Cargo.toml`) of any crate in your workspace that depends on `rustls-platform-verifier` from
 the location of your `build.gradle` file:
@@ -157,6 +162,35 @@ Then, wherever you declare your dependencies, add the following:
 implementation "rustls:rustls-platform-verifier:latest.release"
 ```
 
+</details>
+
+<details>
+<summary>Library Snippets</summary>
+    
+```groovy
+import groovy.json.JsonSlurper
+
+// ...Your own script code could be here...
+
+File findRustlsPlatformVerifierClasses() {
+    def dependencyText = providers.exec {
+        it.workingDir = new File("../")
+        commandLine("cargo", "metadata", "--format-version", "1")
+    }.standardOutput.asText.get()
+
+    def dependencyJson = new JsonSlurper().parseText(dependencyText)
+    def manifestFile = file(dependencyJson.packages.find { it.name == "rustls-platform-verifier-android" }.manifest_path)
+    return new File(manifestFile.parentFile, "classes.jar")
+}
+```
+
+Then, wherever you declare your dependencies, add the following:
+```groovy
+implementation files(findRustlsPlatformVerifierClasses())
+```
+
+</details>
+
 Cargo automatically handles finding the downloaded crate in the correct location for your project. It also handles updating the version when
 new releases of `rustls-platform-verifier` are published. If you only use published releases, no extra maintenance should be required.
 
@@ -166,7 +200,7 @@ implementation part can be located on-disk.
 ##### Kotlin and Gradle
 
 <details>
-<summary>Kotlin script example</summary>
+<summary>Kotlin script App example</summary>
 
 `build.gradle.kts`:
 ```kotlin
@@ -221,6 +255,47 @@ dependencies {
 ```toml
 # We always use the latest release because `cargo` keeps it in sync with the associated Rust crate's version.
 rustls-platform-verifier = { group = "rustls", name = "rustls-platform-verifier", version = "latest.release" }
+```
+</details>
+
+<details>
+<summary>Kotlin script Library example</summary>
+
+`build.gradle.kts`:
+```kotlin
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+
+buildscript {
+    dependencies {
+        classpath(libs.kotlinx.serialization.json)
+    }
+}
+
+fun findRustlsPlatformVerifierClasses(): File {
+    val dependencyJson = providers.exec {
+        workingDir = File(project.rootDir, "../")
+        commandLine("cargo", "metadata", "--format-version", "1")
+    }.standardOutput.asText
+
+    val path = Json.decodeFromString<JsonObject>(dependencyJson.get())
+        .getValue("packages")
+        .jsonArray
+        .first { element ->
+            element.jsonObject.getValue("name").jsonPrimitive.content == "rustls-platform-verifier-android"
+        }.jsonObject.getValue("manifest_path").jsonPrimitive.content
+
+    val manifestFile = File(path)
+    return File(manifestFile.parentFile, "classes.jar")
+}
+
+dependencies {
+    implementation(files(findRustlsPlatformVerifierClasses()))
+}
 ```
 </details>
 
