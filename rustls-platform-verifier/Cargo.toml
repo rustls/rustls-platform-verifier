@@ -23,9 +23,13 @@ dbg = []
 cert-logging = ["base64"]
 # Used for nicely documenting the Android-specific APIs. This feature is not stable.
 docsrs = ["jni", "once_cell"]
+# Use upki for revocation checking on Linux.  This requires the upki service to be installed
+# on the target machine, which synchronizes revocation data.
+upki = ["dep:rustls-upki"]
 
 [dependencies]
 rustls = { version = "0.23.27", default-features = false, features = ["std"] }
+rustls-upki = { git = "https://github.com/rustls/upki", optional = true }
 log = { version = "0.4" }
 base64 = { version = "0.22", optional = true } # Only used when the `cert-logging` feature is enabled.
 jni = { version = "0.22.4", default-features = false, optional = true } # Only used during doc generation
