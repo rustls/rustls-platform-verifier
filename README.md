@@ -311,41 +311,54 @@ can do this for you:
 #### Crate initialization
 
 In order for the crate to call into the JVM, it needs handles from Android. These
-are provided either the `init_external` or `init_hosted` function. These give `rustls-platform-verifier`
+are provided by one of the `init_with_env`, `init_with_refs` or `init_with_runtime` functions. These give `rustls-platform-verifier`
 the resources it needs to make calls into the Android certificate verifier.
 
 As an example, if your Rust Android component which the "native" Android
 part of your app calls at startup has an initialization, like this:
+
 ```rust ,ignore
-#[export_name = "Java_com_orgname_android_rust_init"]
-extern "C" fn java_init(
-    env: JNIEnv,
-    _class: JClass,
-    context: JObject,
-) -> jboolean {
+use jni::jni_mangle;
+use jni::objects::{JClass, JObject};
+use jni::EnvUnowned;
+
+#[jni_mangle("com.orgname.application.Application")]
+pub fn init<'caller>(
+    mut unowned_env: EnvUnowned<'caller>,
+    _class: JClass<'caller>,
+    context: JObject<'caller>,
+) {
     // ... initialize your app's other parts here.
 }
 ```
 
-In the simplest case, you should to insert a call to `rustls_platform_verifier::android::init_hosted()` here,
+In the simplest case, you should to insert a call to `rustls_platform_verifier::android::init_with_env()` here,
 before any networking has a chance to run. This only needs to be called once and
 the verifier will be valid for the lifetime of your app's process.
 
 ```rust ,ignore
-extern "C" fn java_init(
-    env: JNIEnv,
-    _class: JClass,
-    context: JObject,
-) -> jboolean {
+use jni::errors::ThrowRuntimeExAndDefault;
+use jni::jni_mangle;
+use jni::objects::{JClass, JObject};
+use jni::EnvUnowned;
+
+#[jni_mangle("com.orgname.application.Application")]
+pub fn init<'caller>(
+    mut unowned_env: EnvUnowned<'caller>,
+    _class: JClass<'caller>,
+    context: JObject<'caller>,
+) {
     // ... initialize your app's other parts here.
 
     // Then, initialize the certificate verifier for future use.
-    rustls_platform_verifier::android::init_hosted(&env, context);
+    unowned_env
+        .with_env(|env| rustls_platform_verifier::android::init_with_env(env, context))
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 ```
 
 In more advanced cases, such as where your code already stores long-lived handles into
-the Android environment, you can alternatively use `init_external`. This function takes
+the Android environment, you can alternatively use `init_with_runtime`. This function takes
 a `&'static` reference to something that implements the `android::Runtime` trait, which the
 crate then uses to obtain the access when required to the JVM.
 
