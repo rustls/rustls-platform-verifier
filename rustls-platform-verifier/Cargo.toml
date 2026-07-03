@@ -29,7 +29,7 @@ upki = ["dep:rustls-upki"]
 
 [dependencies]
 rustls = { version = "0.23.27", default-features = false, features = ["std"] }
-rustls-upki = { git = "https://github.com/rustls/upki", optional = true }
+rustls-upki = { version = "1.0.0-beta.2", optional = true }
 log = { version = "0.4" }
 base64 = { version = "0.22", optional = true } # Only used when the `cert-logging` feature is enabled.
 jni = { version = "0.22.4", default-features = false, optional = true } # Only used during doc generation
