@@ -466,7 +466,7 @@ impl CertificateStore {
             | CERT_CHAIN_CACHE_END_CERT;
 
         // Lowering URL retrieval timeout from default 15s to 10s to account for higher internet speeds
-        parameters.dwUrlRetrievalTimeout = 10 * 1000; // milliseconds
+        parameters.dwUrlRetrievalTimeout = 3 * 1000; // milliseconds
 
         // SAFETY: `cert` points to a valid certificate context, parameters is valid for reads, `cert_chain` is valid
         // for writes, and the certificate store is valid and initialized.
