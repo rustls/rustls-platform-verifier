@@ -34,9 +34,7 @@ use rustls::{
     SignatureScheme,
 };
 #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-use windows_sys::Win32::Security::Cryptography::{
-    CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL, CERT_CHAIN_ENABLE_CACHE_AUTO_UPDATE,
-};
+use windows_sys::Win32::Security::Cryptography::CERT_CHAIN_ENABLE_CACHE_AUTO_UPDATE;
 use windows_sys::Win32::{
     Foundation::{
         CERT_E_CN_NO_MATCH, CERT_E_EXPIRED, CERT_E_INVALID_NAME, CERT_E_UNTRUSTEDROOT,
@@ -47,7 +45,7 @@ use windows_sys::Win32::{
         CertFreeCertificateChain, CertFreeCertificateChainEngine, CertFreeCertificateContext,
         CertGetCertificateChain, CertOpenStore, CertSetCertificateContextProperty,
         CertVerifyCertificateChainPolicy, HTTPSPolicyCallbackData, AUTHTYPE_SERVER,
-        CERT_CHAIN_CACHE_END_CERT, CERT_CHAIN_CONTEXT,
+        CERT_CHAIN_CACHE_END_CERT, CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL, CERT_CHAIN_CONTEXT,
         CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS, CERT_CHAIN_POLICY_PARA,
         CERT_CHAIN_POLICY_SSL, CERT_CHAIN_POLICY_STATUS,
         CERT_CHAIN_REVOCATION_ACCUMULATIVE_TIMEOUT, CERT_CHAIN_REVOCATION_CHECK_END_CERT,
@@ -99,6 +97,20 @@ impl Verifier {
             test_only_root_ca_override: None,
             crypto_provider,
             extra_roots: Some(cert_engine),
+        })
+    }
+
+    /// Creates a Windows TLS certificate verifier that avoids using online revocation checking.
+    #[cfg_attr(docsrs, doc(cfg(all())))]
+    pub fn offline(
+        roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
+        crypto_provider: Arc<CryptoProvider>,
+    ) -> Result<Self, TlsError> {
+        Ok(Self {
+            #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
+            test_only_root_ca_override: None,
+            crypto_provider,
+            extra_roots: Some(CertEngine::new(roots, CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL)?),
         })
     }
 
