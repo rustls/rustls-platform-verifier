@@ -385,9 +385,7 @@ impl CertificateStore {
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
     fn new_with_fake_root(root: pki_types::CertificateDer<'static>) -> Result<Self, TlsError> {
         let mut inner = Self::new()?;
-
-        let mut root_store = Self::new()?;
-        root_store.add_cert(&root)?;
+        inner.add_cert(&root)?;
 
         let engine = CertEngine::new_with_fake_root(root)?;
         inner.engine = Some(engine);
