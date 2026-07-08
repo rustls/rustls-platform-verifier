@@ -88,7 +88,7 @@ impl Verifier {
 
     /// Creates a new instance of a TLS certificate verifier that utilizes the
     /// Windows certificate facilities and augmented by the provided extra root certificates.
-    #[cfg_attr(docsrs, doc(cfg(not(target_os = "android"))))]
+    #[cfg_attr(docsrs, doc(cfg(all())))]
     pub fn new_with_extra_roots(
         roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
         crypto_provider: Arc<CryptoProvider>,
