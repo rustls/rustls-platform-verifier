@@ -129,7 +129,7 @@ impl Verifier {
         #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
         let mut store = match self.test_only_root_ca_override.as_ref() {
             Some(test_only_root_ca_override) => {
-                CertificateStore::new_with_fake_root(test_only_root_ca_override.clone())?
+                CertificateStore::for_testing(test_only_root_ca_override.clone())?
             }
             None => CertificateStore::new()?,
         };
@@ -304,7 +304,7 @@ impl CertEngine {
     }
 
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-    fn new_with_fake_root(root: pki_types::CertificateDer<'static>) -> Result<Self, TlsError> {
+    fn for_testing(root: pki_types::CertificateDer<'static>) -> Result<Self, TlsError> {
         // We use these flags for the following reasons:
         //
         // - CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL is used in an attempt to stop Windows from using the internet to
@@ -383,11 +383,11 @@ struct CertificateStore {
 
 impl CertificateStore {
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
-    fn new_with_fake_root(root: pki_types::CertificateDer<'static>) -> Result<Self, TlsError> {
+    fn for_testing(root: pki_types::CertificateDer<'static>) -> Result<Self, TlsError> {
         let mut inner = Self::new()?;
         inner.add_cert(&root)?;
 
-        let engine = CertEngine::new_with_fake_root(root)?;
+        let engine = CertEngine::for_testing(root)?;
         inner.engine = Some(engine);
 
         Ok(inner)
