@@ -300,37 +300,11 @@ impl CertEngine {
     fn new_with_extra_roots(
         roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
     ) -> Result<Self, TlsError> {
-        let mut exclusive_store = CertificateStore::new()?;
-        for root in roots {
-            exclusive_store.add_cert(&root)?;
-        }
-
-        let mut config = CERT_CHAIN_ENGINE_CONFIG::zeroed_with_size();
-        config.hExclusiveRoot = exclusive_store.inner.as_ptr();
-
-        let mut engine = EnginePtr::NULL;
-
-        // XXX: Due to the redefinition of `CERT_CHAIN_ENGINE_CONFIG`, we need to do pointer casts
-        // in order to pass our expanded structure into `CertCreateCertificateChainEngine`.
-        // See also `CERT_CHAIN_PARA` casting below.
-        let config = NonNull::from(&config).cast().as_ptr();
-        // SAFETY: `engine` is valid to be written to and the config is valid to be read.
-        let res = unsafe { CertCreateCertificateChainEngine(config, &mut engine) };
-
-        #[allow(clippy::as_conversions)]
-        let engine = call_with_last_error(|| match NonNull::new(engine as *mut c_void) {
-            Some(c) if res == TRUE => Some(c),
-            _ => None,
-        })?;
-        Ok(Self { inner: engine })
+        Self::new(roots, 0)
     }
 
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
     fn new_with_fake_root(root: pki_types::CertificateDer<'static>) -> Result<Self, TlsError> {
-        let mut root_store = CertificateStore::new()?;
-        root_store.add_cert(&root)?;
-
-        let mut config = CERT_CHAIN_ENGINE_CONFIG::zeroed_with_size();
         // We use these flags for the following reasons:
         //
         // - CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL is used in an attempt to stop Windows from using the internet to
@@ -340,11 +314,29 @@ impl CertEngine {
         // data inside of a test and avoid any extra parsing, etc, it might need to do pulling directly from the store each time.
         //
         // Ref: https://docs.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-cert_chain_engine_config
-        config.dwFlags = CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL | CERT_CHAIN_ENABLE_CACHE_AUTO_UPDATE;
-        config.hExclusiveRoot = root_store.inner.as_ptr();
+        Self::new(
+            [root],
+            CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL | CERT_CHAIN_ENABLE_CACHE_AUTO_UPDATE,
+        )
+    }
 
+    fn new(
+        roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
+        flags: u32,
+    ) -> Result<Self, TlsError> {
+        let mut store = CertificateStore::new()?;
+        for root in roots {
+            store.add_cert(&root)?;
+        }
+
+        let mut config = CERT_CHAIN_ENGINE_CONFIG::zeroed_with_size();
+        config.hExclusiveRoot = store.inner.as_ptr();
+        config.dwFlags = flags;
         let mut engine = EnginePtr::NULL;
-        // Same workaround with as above when creating the engine.
+
+        // XXX: Due to the redefinition of `CERT_CHAIN_ENGINE_CONFIG`, we need to do pointer casts
+        // in order to pass our expanded structure into `CertCreateCertificateChainEngine`.
+        // See also `CERT_CHAIN_PARA` casting below.
         let config = NonNull::from(&config).cast().as_ptr();
         // SAFETY: `engine` is valid to be written to and the config is valid to be read.
         let res = unsafe { CertCreateCertificateChainEngine(config, &mut engine) };
