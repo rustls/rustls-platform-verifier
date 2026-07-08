@@ -33,6 +33,10 @@ use rustls::{
     CertificateError, DigitallySignedStruct, Error as TlsError, Error::InvalidCertificate,
     SignatureScheme,
 };
+#[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
+use windows_sys::Win32::Security::Cryptography::{
+    CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL, CERT_CHAIN_ENABLE_CACHE_AUTO_UPDATE,
+};
 use windows_sys::Win32::{
     Foundation::{
         CERT_E_CN_NO_MATCH, CERT_E_EXPIRED, CERT_E_INVALID_NAME, CERT_E_UNTRUSTEDROOT,
@@ -273,10 +277,6 @@ impl CertEngine {
 
     #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
     fn new_with_fake_root(root: &[u8]) -> Result<Self, TlsError> {
-        use windows_sys::Win32::Security::Cryptography::{
-            CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL, CERT_CHAIN_ENABLE_CACHE_AUTO_UPDATE,
-        };
-
         let mut root_store = CertificateStore::new()?;
         root_store.add_cert(root)?;
 
