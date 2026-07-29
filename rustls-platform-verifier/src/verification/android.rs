@@ -91,7 +91,7 @@ impl Verifier {
         &self,
         end_entity: &pki_types::CertificateDer<'_>,
         intermediates: &[pki_types::CertificateDer<'_>],
-        server_name: &pki_types::ServerName<'_>,
+        server_name: &pki_types::ServerName,
         ocsp_response: Option<&[u8]>,
         now: pki_types::UnixTime,
     ) -> Result<(), TlsError> {
@@ -172,7 +172,11 @@ impl Verifier {
                 ) -> org.rustls.platformverifier.VerificationResult
             );
 
-            let server_name = cx.env.new_string(server_name.to_str())?;
+            let server_name = server_name.to_str();
+            // Android's verifier doesn't require this but trim trailing `.` labels for consistency across platforms.
+            let server_name = server_name.strip_suffix('.').unwrap_or(&server_name);
+
+            let server_name = cx.env.new_string(server_name)?;
             let auth_type = cx.env.new_string(AUTH_TYPE)?;
 
             let result = cx

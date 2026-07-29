@@ -707,6 +707,12 @@ impl ServerCertVerifier for Verifier {
         log_server_cert(end_entity);
 
         let name = server_name.to_str();
+        // Trim trailing `.` labels to remove compatibility hazards with the Windows verifier.
+        // It performs exact quality comparisions in most cases (see https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-httpspolicycallbackdata)
+        // which causes problems with hostnames that are considered equivalent for security purposes in other verifier and TLS implementations.
+        //
+        // Ref: https://github.com/rustls/rustls-platform-verifier/issues/240
+        let name = name.strip_suffix('.').unwrap_or(&name);
 
         let intermediate_certs: Vec<&[u8]> = intermediates.iter().map(|c| c.as_ref()).collect();
 
