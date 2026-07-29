@@ -257,6 +257,8 @@ impl ServerCertVerifier for Verifier {
         // Convert IP addresses to name strings to ensure match check on leaf certificate.
         // Ref: https://developer.apple.com/documentation/security/1392592-secpolicycreatessl
         let server = server_name.to_str();
+        // Apple's verifier doesn't require this but trim trailing `.` labels for consistency across platforms.
+        let server = server.strip_suffix('.').unwrap_or(&server);
 
         let ocsp_data = if !ocsp_response.is_empty() {
             Some(ocsp_response)
@@ -264,7 +266,7 @@ impl ServerCertVerifier for Verifier {
             None
         };
 
-        match self.verify_certificate(end_entity, intermediates, &server, ocsp_data, now) {
+        match self.verify_certificate(end_entity, intermediates, server, ocsp_data, now) {
             Ok(()) => Ok(rustls::client::danger::ServerCertVerified::assertion()),
             Err(e) => {
                 // This error only tells us what the system errored with, so it doesn't leak anything

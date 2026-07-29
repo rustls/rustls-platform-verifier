@@ -152,6 +152,16 @@ mock_root_test_cases! {
         expected_result: Ok(()),
         other_error: no_error!(),
     },
+    valid_no_stapling_dns_trailing_label [ any(windows, unix) ] => TestCase {
+        // XXX: `pki_types` validates that the label is still valid and that cases such as two `.` characters
+        // are still correctly rejected.
+        reference_id: "example.com.",
+        chain: &[ROOT1_INT1_EXAMPLE_COM_GOOD, ROOT1_INT1],
+        stapled_ocsp: None,
+        verification_time: verification_time(),
+        expected_result: Ok(()),
+        other_error: no_error!(),
+    },
     valid_no_stapling_ipv4 [ any(windows, unix) ] => TestCase {
         reference_id: LOCALHOST_IPV4,
         chain: &[ROOT1_INT1_LOCALHOST_IPV4_GOOD, ROOT1_INT1],
