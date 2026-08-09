@@ -118,12 +118,9 @@ impl Verifier {
         };
 
         Ok(Self {
-            inner: WebPkiServerVerifier::builder_with_provider(
-                root_store.into(),
-                crypto_provider.clone(),
-            )
-            .build()
-            .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))?,
+            inner: WebPkiServerVerifier::builder_with_provider(root_store.into(), crypto_provider)
+                .build()
+                .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))?,
         })
     }
 }
