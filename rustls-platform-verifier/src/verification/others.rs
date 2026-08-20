@@ -1,13 +1,15 @@
 use std::fmt::Debug;
+use std::hash::Hasher;
 use std::sync::Arc;
 
-use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
-use rustls::client::WebPkiServerVerifier;
-use rustls::pki_types;
-use rustls::{
-    crypto::CryptoProvider, CertificateError, DigitallySignedStruct, Error as TlsError, OtherError,
-    SignatureScheme,
+use rustls::client::danger::{
+    HandshakeSignatureValid, ServerIdentity, ServerVerifier, SignatureVerificationInput,
 };
+use rustls::client::WebPkiServerVerifier;
+use rustls::crypto::{CryptoProvider, SignatureScheme, VerifiedIdentity};
+use rustls::error::{CertificateError, OtherError};
+use rustls::pki_types;
+use rustls::Error as TlsError;
 
 use super::log_server_cert;
 
@@ -66,12 +68,11 @@ impl Verifier {
             if let Some(test_root) = test_root {
                 root_store.add(test_root)?;
                 return Ok(Self {
-                    inner: WebPkiServerVerifier::builder_with_provider(
-                        root_store.into(),
-                        crypto_provider.clone(),
-                    )
-                    .build()
-                    .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))?,
+                    inner: Arc::new(
+                        WebPkiServerVerifier::builder(Arc::new(root_store), &crypto_provider)
+                            .build()
+                            .map_err(|e| TlsError::Other(OtherError::new(e)))?,
+                    ),
                 });
             }
         }
@@ -118,30 +119,27 @@ impl Verifier {
         };
 
         Ok(Self {
-            inner: WebPkiServerVerifier::builder_with_provider(
-                root_store.into(),
-                crypto_provider.clone(),
-            )
-            .build()
-            .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))?,
+            inner: Arc::new(
+                WebPkiServerVerifier::builder(Arc::new(root_store), &crypto_provider)
+                    .build()
+                    .map_err(|e| TlsError::Other(OtherError::new(e)))?,
+            ),
         })
     }
 }
 
 #[cfg_attr(docsrs, doc(cfg(all())))]
-impl ServerCertVerifier for Verifier {
-    fn verify_server_cert(
+impl ServerVerifier for Verifier {
+    fn verify_identity<'a>(
         &self,
-        end_entity: &pki_types::CertificateDer<'_>,
-        intermediates: &[pki_types::CertificateDer<'_>],
-        server_name: &pki_types::ServerName,
-        ocsp_response: &[u8],
-        now: pki_types::UnixTime,
-    ) -> Result<ServerCertVerified, TlsError> {
-        log_server_cert(end_entity);
+        identity: &ServerIdentity<'a, '_>,
+    ) -> Result<VerifiedIdentity<'a>, TlsError> {
+        if let rustls::crypto::Identity::X509(certificates) = identity.identity {
+            log_server_cert(&certificates.end_entity);
+        }
 
         self.inner
-            .verify_server_cert(end_entity, intermediates, server_name, ocsp_response, now)
+            .verify_identity(identity)
             .map_err(map_webpki_errors)
             // This only contains information from the system or other public
             // bits of the TLS handshake, so it can't leak anything.
@@ -153,24 +151,29 @@ impl ServerCertVerifier for Verifier {
 
     fn verify_tls12_signature(
         &self,
-        message: &[u8],
-        cert: &pki_types::CertificateDer<'_>,
-        dss: &DigitallySignedStruct,
+        input: &SignatureVerificationInput<'_>,
     ) -> Result<HandshakeSignatureValid, TlsError> {
-        self.inner.verify_tls12_signature(message, cert, dss)
+        self.inner.verify_tls12_signature(input)
     }
 
     fn verify_tls13_signature(
         &self,
-        message: &[u8],
-        cert: &pki_types::CertificateDer<'_>,
-        dss: &DigitallySignedStruct,
+        input: &SignatureVerificationInput<'_>,
     ) -> Result<HandshakeSignatureValid, TlsError> {
-        self.inner.verify_tls13_signature(message, cert, dss)
+        self.inner.verify_tls13_signature(input)
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
         self.inner.supported_verify_schemes()
+    }
+
+    fn request_ocsp_response(&self) -> bool {
+        self.inner.request_ocsp_response()
+    }
+
+    fn hash_config(&self, h: &mut dyn Hasher) {
+        h.write(b"rustls-platform-verifier-others");
+        self.inner.hash_config(h);
     }
 }
 
@@ -178,9 +181,7 @@ fn map_webpki_errors(err: TlsError) -> TlsError {
     match &err {
         TlsError::InvalidCertificate(CertificateError::InvalidPurpose)
         | TlsError::InvalidCertificate(CertificateError::InvalidPurposeContext { .. }) => {
-            TlsError::InvalidCertificate(CertificateError::Other(OtherError(Arc::new(
-                super::EkuError,
-            ))))
+            TlsError::InvalidCertificate(CertificateError::Other(OtherError::new(super::EkuError)))
         }
         _ => err,
     }

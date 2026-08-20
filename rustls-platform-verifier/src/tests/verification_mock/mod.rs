@@ -21,17 +21,18 @@
     not(target_os = "visionos")
 ))]
 
-use std::convert::TryFrom;
-use std::net::IpAddr;
-#[cfg(not(any(target_vendor = "apple", windows)))]
-use std::net::{Ipv4Addr, Ipv6Addr};
-use std::sync::Arc;
-
-use rustls::client::danger::ServerCertVerifier;
+use rustls::client::danger::{ServerIdentity, ServerVerifier};
+use rustls::crypto::Identity;
+use rustls::error::{CertificateError, OtherError};
 use rustls::pki_types;
 #[cfg(not(any(target_vendor = "apple", windows)))]
 use rustls::pki_types::{DnsName, ServerName};
-use rustls::{CertificateError, Error as TlsError, OtherError};
+use rustls::Error as TlsError;
+use std::convert::TryFrom;
+use std::iter;
+use std::net::IpAddr;
+#[cfg(not(any(target_vendor = "apple", windows)))]
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 use super::TestCase;
 use crate::tests::{assert_cert_error_eq, test_provider, verification_time};
@@ -118,13 +119,11 @@ pub(super) fn verification_without_mock_root() {
     // Similarly on UNIX platforms using the Webpki verifier, it can't fetch extra certificates through
     // AIA chasing or other mechanisms, and so we know this test will correctly verify an unknown
     // root in a chain fails validation.
-    let result = verifier.verify_server_cert(
-        &end_entity,
-        &intermediates,
-        &server_name,
-        &[],
-        verification_time(),
-    );
+    let identity =
+        Identity::from_cert_chain(iter::once(end_entity).chain(intermediates).collect()).unwrap();
+    let identity = ServerIdentity::new(&identity, &server_name, verification_time());
+
+    let result = verifier.verify_identity(&identity);
 
     assert_eq!(
         result.map(|_| ()),
@@ -321,7 +320,7 @@ mock_root_test_cases! {
         stapled_ocsp: None,
         verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(
-            CertificateError::Other(OtherError(Arc::from(EkuError))))),
+            CertificateError::Other(OtherError::new(EkuError)))),
         other_error: Some(EkuError),
     },
     wrong_eku_ipv4 [ any(windows, unix) ] => TestCase {
@@ -330,7 +329,7 @@ mock_root_test_cases! {
         stapled_ocsp: None,
         verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(
-            CertificateError::Other(OtherError(Arc::from(EkuError))))),
+            CertificateError::Other(OtherError::new(EkuError)))),
         other_error: Some(EkuError),
     },
     wrong_eku_ipv6 [ any(windows, unix) ] => TestCase {
@@ -339,7 +338,7 @@ mock_root_test_cases! {
         stapled_ocsp: None,
         verification_time: verification_time(),
         expected_result: Err(TlsError::InvalidCertificate(
-            CertificateError::Other(OtherError(Arc::from(EkuError))))),
+            CertificateError::Other(OtherError::new(EkuError)))),
         other_error: Some(EkuError),
     },
 }
@@ -372,13 +371,20 @@ fn test_with_mock_root<E: std::error::Error + PartialEq + 'static>(
         assert!(matches!(server_name, pki_types::ServerName::DnsName(_)));
     }
 
-    let result = verifier.verify_server_cert(
-        &end_entity,
-        &intermediates,
+    let presented_identity =
+        Identity::from_cert_chain(iter::once(end_entity).chain(intermediates).collect()).unwrap();
+    let mut identity = ServerIdentity::new(
+        &presented_identity,
         &server_name,
-        test_case.stapled_ocsp.unwrap_or(&[]),
         test_case.verification_time,
     );
+    identity.ocsp_response = test_case.stapled_ocsp.unwrap_or(&[]);
+
+    let result = verifier.verify_identity(&identity);
+
+    if let Ok(verified) = &result {
+        assert_eq!(verified.identity(), &presented_identity);
+    }
 
     assert_cert_error_eq(
         &result.map(|_| ()),

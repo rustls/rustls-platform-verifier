@@ -2,13 +2,12 @@
 #![doc = include_str!("../README.md")]
 #![warn(missing_docs)]
 
-use std::sync::Arc;
-
 #[cfg(feature = "dbg")]
 use rustls::crypto::CryptoProvider;
 #[cfg(feature = "dbg")]
 use rustls::pki_types::CertificateDer;
 use rustls::{client::WantsClientCert, ClientConfig, ConfigBuilder, WantsVerifier};
+use std::sync::Arc;
 
 mod verification;
 pub use verification::Verifier;
@@ -39,7 +38,7 @@ pub use tests::ffi::*;
 pub fn verifier_for_dbg(
     root: CertificateDer<'static>,
     crypto_provider: Arc<CryptoProvider>,
-) -> Arc<dyn rustls::client::danger::ServerCertVerifier> {
+) -> Arc<dyn rustls::client::danger::ServerVerifier> {
     Arc::new(Verifier::new_with_fake_root(root, crypto_provider))
 }
 
@@ -50,10 +49,12 @@ pub trait BuilderVerifierExt {
     /// ```rust
     /// use rustls::ClientConfig;
     /// use rustls_platform_verifier::BuilderVerifierExt;
-    /// let config = ClientConfig::builder()
+    /// let provider = std::sync::Arc::new(rustls_ring::DEFAULT_PROVIDER.clone());
+    /// let config = ClientConfig::builder(provider)
     ///     .with_platform_verifier()
     ///     .unwrap()
-    ///     .with_no_client_auth();
+    ///     .with_no_client_auth()
+    ///     .unwrap();
     /// ```
     fn with_platform_verifier(
         self,
@@ -64,7 +65,7 @@ impl BuilderVerifierExt for ConfigBuilder<ClientConfig, WantsVerifier> {
     fn with_platform_verifier(
         self,
     ) -> Result<ConfigBuilder<ClientConfig, WantsClientCert>, rustls::Error> {
-        let verifier = Verifier::new(self.crypto_provider().clone())?;
+        let verifier = Verifier::new(self.provider().clone())?;
         Ok(self
             .dangerous()
             .with_custom_certificate_verifier(Arc::new(verifier)))
@@ -73,20 +74,27 @@ impl BuilderVerifierExt for ConfigBuilder<ClientConfig, WantsVerifier> {
 
 /// Extension trait to help build a [`ClientConfig`] with the platform verifier.
 pub trait ConfigVerifierExt {
-    /// Build a [`ClientConfig`] with the platform verifier and the default `CryptoProvider`.
+    /// Configures an existing [`ClientConfig`] with the platform verifier.
     ///
     /// ```rust
-    /// use rustls::ClientConfig;
+    /// use rustls::{ClientConfig, RootCertStore};
     /// use rustls_platform_verifier::ConfigVerifierExt;
-    /// let config = ClientConfig::with_platform_verifier();
+    /// let provider = std::sync::Arc::new(rustls_ring::DEFAULT_PROVIDER.clone());
+    /// let config = ClientConfig::builder(provider)
+    ///     .with_root_certificates(RootCertStore::empty())
+    ///     .with_no_client_auth()
+    ///     .unwrap()
+    ///     .with_platform_verifier()
+    ///     .unwrap();
     /// ```
-    fn with_platform_verifier() -> Result<ClientConfig, rustls::Error>;
+    fn with_platform_verifier(self) -> Result<ClientConfig, rustls::Error>;
 }
 
 impl ConfigVerifierExt for ClientConfig {
-    fn with_platform_verifier() -> Result<ClientConfig, rustls::Error> {
-        Ok(ClientConfig::builder()
-            .with_platform_verifier()?
-            .with_no_client_auth())
+    fn with_platform_verifier(mut self) -> Result<ClientConfig, rustls::Error> {
+        let verifier = Verifier::new(self.provider().clone())?;
+        self.dangerous()
+            .set_certificate_verifier(Arc::new(verifier));
+        Ok(self)
     }
 }

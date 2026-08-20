@@ -26,13 +26,17 @@ use std::{
     sync::Arc,
 };
 
-use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerifier};
-use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, CryptoProvider};
-use rustls::pki_types;
-use rustls::{
-    CertificateError, DigitallySignedStruct, Error as TlsError, Error::InvalidCertificate,
-    SignatureScheme,
+use core::hash::Hasher;
+use rustls::client::danger::{
+    HandshakeSignatureValid, ServerIdentity, ServerVerifier, SignatureVerificationInput,
 };
+use rustls::crypto::{
+    verify_tls12_signature, verify_tls13_signature, CertificateIdentity, CryptoProvider, Identity,
+    SignatureScheme, VerifiedIdentity,
+};
+use rustls::error::CertificateError;
+use rustls::pki_types;
+use rustls::{Error as TlsError, Error::InvalidCertificate};
 use windows_sys::Win32::{
     Foundation::{
         CERT_E_CN_NO_MATCH, CERT_E_EXPIRED, CERT_E_INVALID_NAME, CERT_E_UNTRUSTEDROOT,
@@ -597,11 +601,8 @@ impl Verifier {
     /// Return `Ok(())` if the certificate was valid.
     fn verify_certificate(
         &self,
-        primary_cert: &[u8],
-        intermediate_certs: &[&[u8]],
-        server: &[u8],
-        ocsp_data: Option<&[u8]>,
-        now: pki_types::UnixTime,
+        certificates: &CertificateIdentity<'_>,
+        identity: &ServerIdentity<'_, '_>,
     ) -> Result<(), TlsError> {
         #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
         let mut store = match self.test_only_root_ca_override.as_ref() {
@@ -614,19 +615,19 @@ impl Verifier {
         #[cfg(not(any(test, feature = "ffi-testing", feature = "dbg")))]
         let mut store = CertificateStore::new()?;
 
-        let mut primary_cert = store.add_cert(primary_cert)?;
+        let mut primary_cert = store.add_cert(certificates.end_entity.as_ref())?;
 
-        for cert in intermediate_certs.iter().copied() {
-            store.add_cert(cert)?;
+        for cert in &certificates.intermediates {
+            store.add_cert(cert.as_ref())?;
         }
 
-        if let Some(ocsp_data) = ocsp_data {
+        if !identity.ocsp_response.is_empty() {
             #[allow(clippy::as_conversions)]
             let data = CRYPT_INTEGER_BLOB {
-                cbData: ocsp_data.len().try_into().map_err(|_| {
+                cbData: identity.ocsp_response.len().try_into().map_err(|_| {
                     invalid_certificate("Malformed OCSP response stapled to server certificate")
                 })?,
-                pbData: ocsp_data.as_ptr() as *mut u8,
+                pbData: identity.ocsp_response.as_ptr() as *mut u8,
             };
 
             // SAFETY: `data` is a valid pointer and matches the property ID.
@@ -639,13 +640,22 @@ impl Verifier {
         }
 
         // Encode UTF-16, null-terminated
-        let server: Vec<u16> = server
+        let server_name = identity.server_name.to_str();
+        // Trim trailing `.` labels to remove compatibility hazards with the Windows verifier.
+        // It performs exact equality comparisons in most cases (see https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-httpspolicycallbackdata),
+        // which causes problems with hostnames considered equivalent by other verifier and TLS implementations.
+        //
+        // Ref: https://github.com/rustls/rustls-platform-verifier/issues/240
+        let server_name = server_name.strip_suffix('.').unwrap_or(&server_name);
+        let server: Vec<u16> = server_name
+            .as_bytes()
             .iter()
             .map(|c| u16::from(*c))
             .chain(Some(0))
             .collect();
 
-        let mut cert_chain = store.new_chain_in(&primary_cert, now, store.engine.as_ref())?;
+        let mut cert_chain =
+            store.new_chain_in(&primary_cert, identity.now, store.engine.as_ref())?;
 
         // We only use `TrustStatus` here because it hasn't had verification performed on it.
         // SAFETY: The pointer is guaranteed to be non-null.
@@ -661,11 +671,12 @@ impl Verifier {
         if extra_roots_may_needed && self.extra_roots.is_some() {
             let mut store = CertificateStore::new()?;
 
-            for cert in intermediate_certs.iter().copied() {
-                store.add_cert(cert)?;
+            for cert in &certificates.intermediates {
+                store.add_cert(cert.as_ref())?;
             }
 
-            cert_chain = store.new_chain_in(&primary_cert, now, self.extra_roots.as_ref())?;
+            cert_chain =
+                store.new_chain_in(&primary_cert, identity.now, self.extra_roots.as_ref())?;
         }
 
         let status = cert_chain.verify_chain_policy(server)?;
@@ -695,41 +706,21 @@ impl Verifier {
 }
 
 #[cfg_attr(docsrs, doc(cfg(all())))]
-impl ServerCertVerifier for Verifier {
-    fn verify_server_cert(
+impl ServerVerifier for Verifier {
+    fn verify_identity<'a>(
         &self,
-        end_entity: &pki_types::CertificateDer<'_>,
-        intermediates: &[pki_types::CertificateDer<'_>],
-        server_name: &pki_types::ServerName,
-        ocsp_response: &[u8],
-        now: pki_types::UnixTime,
-    ) -> Result<rustls::client::danger::ServerCertVerified, TlsError> {
-        log_server_cert(end_entity);
-
-        let name = server_name.to_str();
-        // Trim trailing `.` labels to remove compatibility hazards with the Windows verifier.
-        // It performs exact quality comparisions in most cases (see https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-httpspolicycallbackdata)
-        // which causes problems with hostnames that are considered equivalent for security purposes in other verifier and TLS implementations.
-        //
-        // Ref: https://github.com/rustls/rustls-platform-verifier/issues/240
-        let name = name.strip_suffix('.').unwrap_or(&name);
-
-        let intermediate_certs: Vec<&[u8]> = intermediates.iter().map(|c| c.as_ref()).collect();
-
-        let ocsp_data = if !ocsp_response.is_empty() {
-            Some(ocsp_response)
-        } else {
-            None
+        identity: &ServerIdentity<'a, '_>,
+    ) -> Result<VerifiedIdentity<'a>, TlsError> {
+        let Identity::X509(certificates) = identity.identity else {
+            return Err(invalid_certificate(
+                "platform verifier only supports X.509 certificates",
+            ));
         };
 
-        match self.verify_certificate(
-            end_entity.as_ref(),
-            &intermediate_certs,
-            name.as_bytes(),
-            ocsp_data,
-            now,
-        ) {
-            Ok(()) => Ok(rustls::client::danger::ServerCertVerified::assertion()),
+        log_server_cert(&certificates.end_entity);
+
+        match self.verify_certificate(certificates, identity) {
+            Ok(()) => Ok(VerifiedIdentity::assertion(identity.identity.clone())),
             Err(e) => {
                 // SAFETY:
                 // Errors are our own custom errors, WinAPI errors, or static strings.
@@ -741,28 +732,20 @@ impl ServerCertVerifier for Verifier {
 
     fn verify_tls12_signature(
         &self,
-        message: &[u8],
-        cert: &pki_types::CertificateDer<'_>,
-        dss: &DigitallySignedStruct,
+        input: &SignatureVerificationInput<'_>,
     ) -> Result<HandshakeSignatureValid, TlsError> {
         verify_tls12_signature(
-            message,
-            cert,
-            dss,
+            input,
             &self.crypto_provider.signature_verification_algorithms,
         )
     }
 
     fn verify_tls13_signature(
         &self,
-        message: &[u8],
-        cert: &pki_types::CertificateDer<'_>,
-        dss: &DigitallySignedStruct,
+        input: &SignatureVerificationInput<'_>,
     ) -> Result<HandshakeSignatureValid, TlsError> {
         verify_tls13_signature(
-            message,
-            cert,
-            dss,
+            input,
             &self.crypto_provider.signature_verification_algorithms,
         )
     }
@@ -771,6 +754,17 @@ impl ServerCertVerifier for Verifier {
         self.crypto_provider
             .signature_verification_algorithms
             .supported_schemes()
+    }
+
+    fn request_ocsp_response(&self) -> bool {
+        true
+    }
+
+    fn hash_config(&self, h: &mut dyn Hasher) {
+        h.write(b"rustls-platform-verifier-windows");
+        h.write_u8(u8::from(self.extra_roots.is_some()));
+        #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
+        h.write_u8(u8::from(self.test_only_root_ca_override.is_some()));
     }
 }
 

@@ -8,9 +8,10 @@ mod verification_real_world;
 
 mod verification_mock;
 
+use rustls::crypto::CryptoProvider;
+use rustls::error::CertificateError;
 use rustls::{
-    crypto::CryptoProvider,
-    pki_types, CertificateError,
+    pki_types,
     Error::{self as TlsError, InvalidCertificate},
 };
 
@@ -47,8 +48,8 @@ pub fn assert_cert_error_eq<E: StdError + PartialEq + 'static>(
     if let Err(InvalidCertificate(CertificateError::Other(err))) = &expected {
         let expected_err = expected_err.expect("error not provided for `Other` case handling");
         let err: &E = err
-            .0
-            .downcast_ref()
+            .source()
+            .and_then(|source| source.downcast_ref())
             .expect("incorrect `Other` inner error kind");
         assert_eq!(err, expected_err);
     } else {
@@ -62,10 +63,10 @@ pub fn assert_cert_error_eq<E: StdError + PartialEq + 'static>(
 /// we know the test certificates are valid. This must be updated if the mock certificates
 /// are regenerated.
 pub(crate) fn verification_time() -> pki_types::UnixTime {
-    // Wed, 12 Aug 2026 10:23 UTC
-    pki_types::UnixTime::since_unix_epoch(Duration::from_secs(1_786_530_173))
+    // Thu, 20 Aug 2026 16:25 UTC
+    pki_types::UnixTime::since_unix_epoch(Duration::from_secs(1_787_243_100))
 }
 
 fn test_provider() -> Arc<CryptoProvider> {
-    Arc::new(rustls::crypto::ring::default_provider())
+    Arc::new(rustls_ring::DEFAULT_PROVIDER.clone())
 }

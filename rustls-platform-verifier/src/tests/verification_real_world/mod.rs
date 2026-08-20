@@ -35,11 +35,15 @@
 //! Thus we don't expect these tests to be flaky w.r.t. that, except for
 //! potentially poor performance.
 
-use rustls::client::danger::ServerCertVerifier;
+use std::iter;
+
+use rustls::client::danger::{ServerIdentity, ServerVerifier};
+use rustls::crypto::Identity;
+use rustls::error::CertificateError;
 use rustls::pki_types;
 #[cfg(not(any(target_vendor = "apple", windows)))]
 use rustls::pki_types::{DnsName, ServerName};
-use rustls::{CertificateError, Error as TlsError};
+use rustls::Error as TlsError;
 
 use super::TestCase;
 use crate::tests::{assert_cert_error_eq, test_provider, verification_time};
@@ -166,17 +170,13 @@ fn real_world_test<E: std::error::Error>(test_case: &TestCase<E>) {
 
     let server_name = pki_types::ServerName::try_from(test_case.reference_id).unwrap();
 
-    let stapled_ocsp = test_case.stapled_ocsp.unwrap_or(&[]);
+    let identity =
+        Identity::from_cert_chain(iter::once(end_entity_cert).chain(intermediates).collect())
+            .unwrap();
+    let mut identity = ServerIdentity::new(&identity, &server_name, test_case.verification_time);
+    identity.ocsp_response = test_case.stapled_ocsp.unwrap_or(&[]);
 
-    let result = verifier
-        .verify_server_cert(
-            &end_entity_cert,
-            &intermediates,
-            &server_name,
-            stapled_ocsp,
-            test_case.verification_time,
-        )
-        .map(|_| ());
+    let result = verifier.verify_identity(&identity).map(|_| ());
 
     assert_cert_error_eq(
         &result.map(|_| ()),
