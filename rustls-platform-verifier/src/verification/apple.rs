@@ -1,13 +1,18 @@
 use std::sync::Arc;
 
+use core::hash::Hasher;
 use core_foundation::date::CFDate;
 use core_foundation_sys::date::kCFAbsoluteTimeIntervalSince1970;
-use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerifier};
-use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, CryptoProvider};
-use rustls::pki_types;
-use rustls::{
-    CertificateError, DigitallySignedStruct, Error as TlsError, OtherError, SignatureScheme,
+use rustls::client::danger::{
+    HandshakeSignatureValid, ServerIdentity, ServerVerifier, SignatureVerificationInput,
 };
+use rustls::crypto::{
+    verify_tls12_signature, verify_tls13_signature, CertificateIdentity, CryptoProvider, Identity,
+    SignatureScheme, VerifiedIdentity,
+};
+use rustls::error::{CertificateError, OtherError};
+use rustls::pki_types;
+use rustls::Error as TlsError;
 use security_framework::{
     certificate::SecCertificate, policy::SecPolicy, secure_transport::SslProtocolSide,
     trust::SecTrust,
@@ -104,19 +109,28 @@ impl Verifier {
 
     fn verify_certificate(
         &self,
-        end_entity: &pki_types::CertificateDer<'_>,
-        intermediates: &[pki_types::CertificateDer<'_>],
-        server_name: &str,
-        ocsp_response: Option<&[u8]>,
-        now: pki_types::UnixTime,
+        certificates: &CertificateIdentity<'_>,
+        identity: &ServerIdentity<'_, '_>,
     ) -> Result<(), TlsError> {
-        let certificates: Vec<SecCertificate> = std::iter::once(end_entity.as_ref())
-            .chain(intermediates.iter().map(|cert| cert.as_ref()))
+        let certificates: Vec<SecCertificate> = std::iter::once(certificates.end_entity.as_ref())
+            .chain(certificates.intermediates.iter().map(|cert| cert.as_ref()))
             .map(|cert| {
                 SecCertificate::from_der(cert)
                     .map_err(|_| TlsError::InvalidCertificate(CertificateError::BadEncoding))
             })
             .collect::<Result<Vec<SecCertificate>, _>>()?;
+
+        let server_name = identity.server_name.to_str();
+        // Apple's verifier doesn't require this but trim trailing `.` labels for consistency across platforms.
+        let server_name = server_name.strip_suffix('.').unwrap_or(&server_name);
+
+        let ocsp_response = if identity.ocsp_response.is_empty() {
+            None
+        } else {
+            Some(identity.ocsp_response)
+        };
+
+        let now = identity.now;
 
         // Create our verification policy suitable for verifying TLS chains.
         // This uses the "default" verification engine and parameters, the same as Windows.
@@ -170,14 +184,14 @@ impl Verifier {
         if !extra_roots.is_empty() {
             trust_evaluation
                 .set_anchor_certificates(extra_roots)
-                .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))?;
+                .map_err(|e| TlsError::Other(OtherError::new(e)))?;
 
             // We want to trust both the system-installed and the extra roots. This must be set
             // since calling `SecTrustSetAnchorCertificates` "disables the trusting of any
             // anchors other than the ones specified by this function call" by default.
             trust_evaluation
                 .set_trust_anchor_certificates_only(false)
-                .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))?;
+                .map_err(|e| TlsError::Other(OtherError::new(e)))?;
         }
 
         // When testing, support using fake roots and ignoring default roots present on the system for
@@ -226,7 +240,7 @@ impl Verifier {
                         CertificateError::UnknownIssuer,
                     )),
                     errors::errSecInvalidExtendedKeyUsage => Ok(TlsError::InvalidCertificate(
-                        CertificateError::Other(OtherError(Arc::new(super::EkuError))),
+                        CertificateError::Other(OtherError::new(super::EkuError)),
                     )),
                     errors::errSecCertificateRevoked => {
                         Ok(TlsError::InvalidCertificate(CertificateError::Revoked))
@@ -243,31 +257,21 @@ impl Verifier {
 }
 
 #[cfg_attr(docsrs, doc(cfg(all())))]
-impl ServerCertVerifier for Verifier {
-    fn verify_server_cert(
+impl ServerVerifier for Verifier {
+    fn verify_identity<'a>(
         &self,
-        end_entity: &pki_types::CertificateDer<'_>,
-        intermediates: &[pki_types::CertificateDer<'_>],
-        server_name: &pki_types::ServerName,
-        ocsp_response: &[u8],
-        now: pki_types::UnixTime,
-    ) -> Result<rustls::client::danger::ServerCertVerified, TlsError> {
-        log_server_cert(end_entity);
-
-        // Convert IP addresses to name strings to ensure match check on leaf certificate.
-        // Ref: https://developer.apple.com/documentation/security/1392592-secpolicycreatessl
-        let server = server_name.to_str();
-        // Apple's verifier doesn't require this but trim trailing `.` labels for consistency across platforms.
-        let server = server.strip_suffix('.').unwrap_or(&server);
-
-        let ocsp_data = if !ocsp_response.is_empty() {
-            Some(ocsp_response)
-        } else {
-            None
+        identity: &ServerIdentity<'a, '_>,
+    ) -> Result<VerifiedIdentity<'a>, TlsError> {
+        let Identity::X509(certificates) = identity.identity else {
+            return Err(invalid_certificate(
+                "platform verifier only supports X.509 certificates",
+            ));
         };
 
-        match self.verify_certificate(end_entity, intermediates, server, ocsp_data, now) {
-            Ok(()) => Ok(rustls::client::danger::ServerCertVerified::assertion()),
+        log_server_cert(&certificates.end_entity);
+
+        match self.verify_certificate(certificates, identity) {
+            Ok(()) => Ok(VerifiedIdentity::assertion(identity.identity.clone())),
             Err(e) => {
                 // This error only tells us what the system errored with, so it doesn't leak anything
                 // sensitive.
@@ -279,28 +283,20 @@ impl ServerCertVerifier for Verifier {
 
     fn verify_tls12_signature(
         &self,
-        message: &[u8],
-        cert: &pki_types::CertificateDer<'_>,
-        dss: &DigitallySignedStruct,
+        input: &SignatureVerificationInput<'_>,
     ) -> Result<HandshakeSignatureValid, TlsError> {
         verify_tls12_signature(
-            message,
-            cert,
-            dss,
+            input,
             &self.crypto_provider.signature_verification_algorithms,
         )
     }
 
     fn verify_tls13_signature(
         &self,
-        message: &[u8],
-        cert: &pki_types::CertificateDer<'_>,
-        dss: &DigitallySignedStruct,
+        input: &SignatureVerificationInput<'_>,
     ) -> Result<HandshakeSignatureValid, TlsError> {
         verify_tls13_signature(
-            message,
-            cert,
-            dss,
+            input,
             &self.crypto_provider.signature_verification_algorithms,
         )
     }
@@ -309,5 +305,16 @@ impl ServerCertVerifier for Verifier {
         self.crypto_provider
             .signature_verification_algorithms
             .supported_schemes()
+    }
+
+    fn request_ocsp_response(&self) -> bool {
+        true
+    }
+
+    fn hash_config(&self, h: &mut dyn Hasher) {
+        h.write(b"rustls-platform-verifier-apple");
+        h.write_usize(self.extra_roots.len());
+        #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
+        h.write_u8(u8::from(self.test_only_root_ca_override.is_some()));
     }
 }

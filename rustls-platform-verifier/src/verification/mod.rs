@@ -1,5 +1,5 @@
 #[cfg(any(windows, target_vendor = "apple"))]
-use std::sync::Arc;
+use rustls::error::{CertificateError, OtherError};
 
 #[cfg(all(
     any(unix, target_arch = "wasm32"),
@@ -65,8 +65,8 @@ fn log_server_cert(_end_entity: &rustls::pki_types::CertificateDer<'_>) {
 // error with a platform specific error message.
 #[cfg(any(windows, target_vendor = "apple"))]
 fn invalid_certificate(reason: impl Into<String>) -> rustls::Error {
-    rustls::Error::InvalidCertificate(rustls::CertificateError::Other(rustls::OtherError(
-        Arc::from(Box::from(reason.into())),
+    rustls::Error::InvalidCertificate(CertificateError::Other(OtherError::new(
+        std::io::Error::other(reason.into()),
     )))
 }
 

@@ -33,14 +33,14 @@ CRL distribution point to fetch revocation information from, revocation checking
 
 [^2]: The fall-back webpki verifier configured for Linux/WASM does not support providing CRLs for revocation
 checking. If you require revocation checking on these platforms, prefer constructing your own
-`WebPkiServerVerifier`, providing necessary CRLs. See the Rustls [`ServerCertVerifierBuilder`] docs for more
+`WebPkiServerVerifier`, providing necessary CRLs. See the Rustls [`ServerVerifierBuilder`] docs for more
 information.
 
 [^3]: On Linux the [rustls-native-certs] and [openssl-probe] crates are used to try and discover the system CA bundle.
 Users may wish to augment these certificates with [webpki-roots] using [`Verifier::new_with_extra_roots`] in case
 a system CA bundle is unavailable.
 
-[`ServerCertVerifierBuilder`]: https://docs.rs/rustls/latest/rustls/client/struct.ServerCertVerifierBuilder.html
+[`ServerVerifierBuilder`]: https://docs.rs/rustls/latest/rustls/client/struct.ServerVerifierBuilder.html
 [`Verifier::new_with_extra_roots`]: https://docs.rs/rustls-platform-verifier/latest/rustls_platform_verifier/struct.Verifier.html#method.new_with_extra_roots
 [rustls-native-certs]: https://github.com/rustls/rustls-native-certs
 [openssl-probe]: https://github.com/alexcrichton/openssl-probe
@@ -88,26 +88,17 @@ On most platforms, no setup should be required beyond adding the dependency via 
 rustls-platform-verifier = "0.5"
 ```
 
-To get a rustls `ClientConfig` configured to use the platform verifier use:
-
-```rust
-use rustls::ClientConfig;
-use rustls_platform_verifier::ConfigVerifierExt;
-let config = ClientConfig::with_platform_verifier();
-```
-
-This crate will use the [rustls process-default crypto provider](https://docs.rs/rustls/latest/rustls/crypto/struct.CryptoProvider.html#using-the-per-process-default-cryptoprovider). To construct a `ClientConfig` with a different `CryptoProvider`, use:
+To get a rustls `ClientConfig` configured to use the platform verifier, use:
 
 ```rust
 use rustls::ClientConfig;
 use rustls_platform_verifier::BuilderVerifierExt;
-let arc_crypto_provider = std::sync::Arc::new(rustls::crypto::ring::default_provider());
-let config = ClientConfig::builder_with_provider(arc_crypto_provider)
-    .with_safe_default_protocol_versions()
-    .unwrap()
+let provider = std::sync::Arc::new(rustls_ring::DEFAULT_PROVIDER.clone());
+let config = ClientConfig::builder(provider)
     .with_platform_verifier()
     .unwrap()
-    .with_no_client_auth();
+    .with_no_client_auth()
+    .unwrap();
 ```
 
 ### Android
