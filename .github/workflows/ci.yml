@@ -80,7 +80,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           rustup target add wasm32-wasip1
-          cargo clippy-ci --target wasm32-wasip1
+          cargo clippy --lib --target wasm32-wasip1 -- -D warnings
 
       # Update any flexible dependencies that may have SemVer applicable changes
       # to ensure the project keeps building with the whole version range. This is:
