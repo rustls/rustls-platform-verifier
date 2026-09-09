@@ -407,6 +407,6 @@ enum Roots {
 /// we know the test certificates are valid. This must be updated if the mock certificates
 /// are regenerated.
 pub(crate) fn verification_time() -> pki_types::UnixTime {
-    // Wed, 12 Aug 2026 10:23 UTC
-    pki_types::UnixTime::since_unix_epoch(Duration::from_secs(1_786_530_173))
+    // Wed, Sep 9 2026 11:52 UTC
+    pki_types::UnixTime::since_unix_epoch(Duration::from_secs(1_788_954_730))
 }
