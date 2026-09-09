@@ -73,13 +73,13 @@ will make it to production faster and any possibly used trust root is static by 
 
 Even though platform verifiers are sometimes implemented in memory-unsafe languages, it is very unlikely that Rust apps using this library will become a point of weakness.
 This is due to either using a smaller set of servers or just being less exposed then other critical functions of the operating system, default web browser, etc.
-But if your activity is identical or close to one of the following examples that process large amounts of untrusted input, a 100% Rust option like `webpki` is a more secure option: 
+But if your activity is identical or close to one of the following examples that process large amounts of untrusted input, a 100% Rust option like `webpki` is a more secure option:
 - Seeing how many TLS servers `rustls` with a specific configuration can connect to.
 - Harvesting data from various untrusted TLS endpoints exposed on the internet.
 - Extracting info from a known-evil endpoint.
 - Scanning all TLS certificates on the open internet.
 
-`rustls-platform-verifier` is widely deployed by several applications that use the `rustls` stack, such as 1Password, Bitwarden, Signal, and `rustup`, on a wide set of OSes. 
+`rustls-platform-verifier` is widely deployed by several applications that use the `rustls` stack, such as 1Password, Bitwarden, Signal, and `rustup`, on a wide set of OSes.
 This means that it has received lots of exposure to edge cases and has real-world experience/expertise invested into it to ensure optimal compatibility and security.
 
 ## Installation and setup
@@ -101,7 +101,7 @@ This crate will use the [rustls process-default crypto provider](https://docs.rs
 ```rust
 use rustls::ClientConfig;
 use rustls_platform_verifier::BuilderVerifierExt;
-let arc_crypto_provider = std::sync::Arc::new(rustls::crypto::ring::default_provider());
+let arc_crypto_provider = std::sync::Arc::new(rustls::crypto::aws_lc_rs::default_provider());
 let config = ClientConfig::builder_with_provider(arc_crypto_provider)
     .with_safe_default_protocol_versions()
     .unwrap()
@@ -166,7 +166,7 @@ implementation "rustls:rustls-platform-verifier:latest.release"
 
 <details>
 <summary>Library Snippets</summary>
-    
+
 ```groovy
 import groovy.json.JsonSlurper
 
