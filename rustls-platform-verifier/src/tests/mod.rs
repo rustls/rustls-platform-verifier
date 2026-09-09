@@ -56,5 +56,5 @@ pub fn assert_cert_error_eq<E: StdError + PartialEq + 'static>(
 }
 
 fn test_provider() -> Arc<CryptoProvider> {
-    Arc::new(rustls::crypto::ring::default_provider())
+    Arc::new(rustls::crypto::aws_lc_rs::default_provider())
 }
