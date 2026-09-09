@@ -148,6 +148,9 @@ jobs:
 
       - name: Test (${{ matrix.os }})
         run: cargo test
+      - name: Update Android security manifest
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo test --manifest-path android-release-support/Cargo.toml --test codegen -- --ignored
 
   test_android:
     name: "Test (Android)"

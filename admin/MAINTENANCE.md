@@ -18,3 +18,14 @@ Thankfully, updating these has become easy:
     2. Run `go run ca.go`
     3. Using your tool of choice, update the hardcoded time in `verification_time` to match the current datetime.
     4. Commit your changes and push up a fix branch/PR.
+
+## Updated CRL host list
+
+In order to facilitate Android downloading CRLs over unsecured HTTP, we have a list of CRL hosts in
+`/android/rustls-platform-verifier/src/main/res/xml/network_security_config.xml`. This list is populated
+by the codegen test in `/android-release-support/tests/codegen.rs` in CI.
+
+To update:
+
+  1. Run `cargo test --manifest-path android-release-support/Cargo.toml --test codegen -- --ignored`
+  2. Commit the changes to `network_security_config.xml` and push up a fix branch/PR.

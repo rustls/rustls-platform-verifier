@@ -16,3 +16,9 @@ include = [
 ]
 
 [dependencies]
+
+[dev-dependencies]
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs"] }
+similar-asserts = "2"
+tokio = { version = "1", features = ["macros"] }
+webpki-ccadb = { git = "https://github.com/rustls/webpki-roots", rev = "aa886731756746ce7fbd4b7fdc9fc08e811cd1b3" }
