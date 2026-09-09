@@ -431,6 +431,7 @@ internal object CertificateVerifier {
                 var i = 0
                 while (true) {
                     val alias = "$hash.$i"
+                    i += 1
 
                     if (!File(loadedSystemCertificateDirectory, alias).exists()) {
                         break
@@ -457,8 +458,6 @@ internal object CertificateVerifier {
                             return true
                         }
                     }
-
-                    i += 1
                 }
             }
         }
