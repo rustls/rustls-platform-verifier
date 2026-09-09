@@ -35,6 +35,8 @@
 //! Thus we don't expect these tests to be flaky w.r.t. that, except for
 //! potentially poor performance.
 
+use core::time::Duration;
+
 use rustls::client::danger::ServerCertVerifier;
 use rustls::pki_types;
 #[cfg(not(any(target_vendor = "apple", windows)))]
@@ -42,7 +44,7 @@ use rustls::pki_types::{DnsName, ServerName};
 use rustls::{CertificateError, Error as TlsError};
 
 use super::TestCase;
-use crate::tests::{assert_cert_error_eq, test_provider, verification_time};
+use crate::tests::{assert_cert_error_eq, test_provider};
 use crate::Verifier;
 
 // This is the certificate chain presented by one server for
@@ -275,4 +277,14 @@ real_world_test_cases! {
     //     // XXX: We only do OCSP stapling on Windows.
     //     valid: !cfg!(windows),
     // },
+}
+
+/// Return a fixed [`pki_types::UnixTime`] for certificate validation purposes.
+///
+/// We fix the "now" value used for certificate validation to a fixed point in time at which
+/// we know the test certificates are valid. This must be updated if the mock certificates
+/// are regenerated.
+pub(crate) fn verification_time() -> pki_types::UnixTime {
+    // Wed, 12 Aug 2026 10:23 UTC
+    pki_types::UnixTime::since_unix_epoch(Duration::from_secs(1_786_530_173))
 }

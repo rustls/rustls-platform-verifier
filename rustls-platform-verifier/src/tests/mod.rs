@@ -1,7 +1,6 @@
 #[cfg(feature = "ffi-testing")]
 pub mod ffi;
 
-use std::time::Duration;
 use std::{error::Error as StdError, sync::Arc};
 
 mod verification_real_world;
@@ -54,16 +53,6 @@ pub fn assert_cert_error_eq<E: StdError + PartialEq + 'static>(
     } else {
         assert_eq!(result, expected);
     }
-}
-
-/// Return a fixed [`pki_types::UnixTime`] for certificate validation purposes.
-///
-/// We fix the "now" value used for certificate validation to a fixed point in time at which
-/// we know the test certificates are valid. This must be updated if the mock certificates
-/// are regenerated.
-pub(crate) fn verification_time() -> pki_types::UnixTime {
-    // Wed, 12 Aug 2026 10:23 UTC
-    pki_types::UnixTime::since_unix_epoch(Duration::from_secs(1_786_530_173))
 }
 
 fn test_provider() -> Arc<CryptoProvider> {
