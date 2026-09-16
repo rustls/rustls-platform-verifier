@@ -6,13 +6,8 @@ repository = "https://github.com/rustls/rustls-platform-verifier"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
-# Explicitly include the Maven local repository for the Android component.
-# While not checked into the repository, it is generated for releases and other contexts.
 include = [
     "src/*",
-    "maven/pom.xml",
-    "maven/rustls/rustls-platform-verifier/**/",
-    "maven/rustls/rustls-platform-verifier/maven-metadata-local.xml",
 ]
 
 [dependencies]

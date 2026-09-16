@@ -3,7 +3,10 @@
 # This script's purpose is to automate the build + packaging steps for the pre-compiled Android verifier component.
 # It works with template files and directories inside the `android-release-support/` part of the repository to setup
 # a Maven local repository and then add the pre-compiled AAR file into it for distribution. The results of this packaging
-# are then included by `cargo` when publishing `rustls-platform-verifier-android`.
+# are then published to dedicated artifacts Git branch on GitHub, emulating an actual online Mavan package repository.
+#
+# Gradle and other clients download the artifacts from thier native build systems later on with the requested files lining up
+# with the structure of the Git repo's contents. This idea was originally inspired by https://github.com/RiV-chain/github-publish-maven-action.
 
 set -euo pipefail
 
@@ -23,14 +26,13 @@ pushd ./android
 
 popd
 
-artifact_name="rustls-platform-verifier-release.aar"
+package_name="rustls-platform-verifier"
+
+artifact_name="$package_name-release.aar"
 
 pushd ./android-release-support
 
-artifact_path="../android/rustls-platform-verifier/build/outputs/aar/$artifact_name"
-
-# Ensure no prior artifacts are present
-git clean -dfX "./maven/"
+artifact_path="../android/$package_name/build/outputs/aar/$artifact_name"
 
 cp ./pom-template.xml ./maven/pom.xml
 
@@ -41,3 +43,15 @@ sed -i.bak "s/\$VERSION/$version/" ./maven/pom.xml
 rm ./maven/pom.xml.bak
 
 mvn install:install-file -Dfile="$artifact_path" -Dpackaging="aar" -DpomFile="./maven/pom.xml" -DlocalRepositoryPath="./maven/"
+
+rm ./maven/pom.xml
+
+pushd ./maven/
+
+artifacts_folder="org/rustls/$package_name/$version"
+
+rm "$artifacts_folder/_remote.repositories"
+
+sha1sum "$artifacts_folder/$package_name-$version.aar" > "$artifacts_folder/$package_name-$version.aar.sha1"
+sha1sum "$artifacts_folder/$package_name-$version.pom" > "$artifacts_folder/$package_name-$version.pom.sha1"
+
