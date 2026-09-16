@@ -5,9 +5,10 @@
 /android/verification/
 
 # Ignore all generated Maven local repository files and folders
-/android-release-support/maven/pom.xml
-/android-release-support/maven/rustls/rustls-platform-verifier/**/
-/android-release-support/maven/rustls/rustls-platform-verifier/maven-metadata-local.xml
+/android-release-support/maven/org/rustls/rustls-platform-verifier/*
+# These two must be kept since the state must be shared between normal branches and the Maven archive one.
+!/android-release-support/maven/org/rustls/rustls-platform-verifier/maven-metadata.xml
+!/android-release-support/maven/org/rustls/rustls-platform-verifier/maven-metadata-local.xml
 
 # Nix
 /result
