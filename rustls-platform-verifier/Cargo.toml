@@ -37,7 +37,7 @@ webpki = { package = "rustls-webpki", version = "0.103", default-features = fals
 
 [target.'cfg(target_os = "android")'.dependencies]
 once_cell = "1.9"
-rustls-platform-verifier-android = { path = "../android-release-support", version = "0.1.0" }
+rustls-platform-verifier-android = { path = "../android-release-support", version = "0.2.0" }
 jni = { version = "0.22", default-features = false }
 webpki = { package = "rustls-webpki", version = "0.103", default-features = false }
 android_logger = { version = "0.15", optional = true } # Only used during testing.
