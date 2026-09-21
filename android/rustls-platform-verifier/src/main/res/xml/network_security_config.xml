@@ -232,6 +232,9 @@
     <domain includeSubdomains="true">gdcadv.crl.certum.pl</domain>
     <domain includeSubdomains="true">gdcaev.crl.certum.pl</domain>
     <domain includeSubdomains="true">gdcaov.crl.certum.pl</domain>
+    <domain includeSubdomains="true">gdcatrustauthdvtlsg3r31ca.crl.certum.pl</domain>
+    <domain includeSubdomains="true">gdcatrustauthevtlsg3r31ca.crl.certum.pl</domain>
+    <domain includeSubdomains="true">gdcatrustauthovtlsg3r31ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">geant.crl.sectigo.com</domain>
     <domain includeSubdomains="true">genious.crl.sectigo.com</domain>
     <domain includeSubdomains="true">geossldvtlsr34g2ca.crl.certum.pl</domain>
@@ -339,6 +342,8 @@
     <domain includeSubdomains="true">unitedtrustov.crl.certum.pl</domain>
     <domain includeSubdomains="true">validation.identrust.com</domain>
     <domain includeSubdomains="true">verokey.crl.sectigo.com</domain>
+    <domain includeSubdomains="true">vtrusdvtlsg3r31ca.crl.certum.pl</domain>
+    <domain includeSubdomains="true">vtrusovtlsg3r31ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">webnic.crl.sectigo.com</domain>
     <domain includeSubdomains="true">whitessldvtlsg2e36ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">wosign.crl.certum.pl</domain>
