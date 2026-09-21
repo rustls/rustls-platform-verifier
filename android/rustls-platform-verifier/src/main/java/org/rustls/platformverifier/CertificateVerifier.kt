@@ -42,7 +42,7 @@ private enum class StatusCode(val value: Int) {
 // Marked private as this is not meant to be used in Android code.
 private class VerificationResult(
     status: StatusCode,
-    @Suppress("unused") val message: String? = null
+    @Suppress("unused") val message: String? = null,
 ) {
     @Suppress("unused")
     private val code: Int = status.value
@@ -186,7 +186,7 @@ internal object CertificateVerifier {
         allowedEkus: Array<String>,
         ocspResponse: ByteArray?,
         time: Long,
-        certChain: Array<ByteArray>
+        certChain: Array<ByteArray>,
     ): VerificationResult {
         // Convert the array of (supposedly) DER bytes into certificates.
         val certificateChain = mutableListOf<X509Certificate>()
@@ -268,7 +268,7 @@ internal object CertificateVerifier {
                 return when (rootCause) {
                     is CertificateExpiredException, is CertificateNotYetValidException -> VerificationResult(
                         StatusCode.Expired,
-                        rootCause.toString()
+                        rootCause.toString(),
                     )
 
                     else -> VerificationResult(StatusCode.UnknownCert, rootCause.toString())
@@ -330,7 +330,7 @@ internal object CertificateVerifier {
 
             revocationChecker.options = EnumSet.of(
                 PKIXRevocationChecker.Option.SOFT_FAIL,
-                PKIXRevocationChecker.Option.ONLY_END_ENTITY
+                PKIXRevocationChecker.Option.ONLY_END_ENTITY,
             )
 
             // Use the OCSP data `rustls` provided, if present.
