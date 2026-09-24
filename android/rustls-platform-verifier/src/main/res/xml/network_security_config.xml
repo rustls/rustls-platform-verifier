@@ -45,10 +45,15 @@
     <domain includeSubdomains="true">certum.crl.sheca.com</domain>
     <domain includeSubdomains="true">certumdvtlsg2e39ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">certumdvtlsg2r39ca.crl.certum.pl</domain>
+    <domain includeSubdomains="true">certumdvtlsg3e39ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">certumevtlsg2e39ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">certumevtlsg2r39ca.crl.certum.pl</domain>
+    <domain includeSubdomains="true">certumevtlsg3e39ca.crl.certum.pl</domain>
+    <domain includeSubdomains="true">certumevtlsg3r39ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">certumovtlsg2e39ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">certumovtlsg2r39ca.crl.certum.pl</domain>
+    <domain includeSubdomains="true">certumovtlsg3e39ca.crl.certum.pl</domain>
+    <domain includeSubdomains="true">certumovtlsg3r39ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">cfcadveccca.crl.certum.pl</domain>
     <domain includeSubdomains="true">cfcadvrsaca.crl.certum.pl</domain>
     <domain includeSubdomains="true">cfcaeveccca.crl.certum.pl</domain>
@@ -176,6 +181,7 @@
     <domain includeSubdomains="true">crls.certainly.com</domain>
     <domain includeSubdomains="true">crls.ssl.com</domain>
     <domain includeSubdomains="true">cyberfolks2.crl.certum.pl</domain>
+    <domain includeSubdomains="true">cyberfolksdvtlsg3r31ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">depo.kamusm.gov.tr</domain>
     <domain includeSubdomains="true">digitaltrust.crl.sectigo.com</domain>
     <domain includeSubdomains="true">dnencrypt.crl.sectigo.com</domain>
@@ -265,6 +271,7 @@
     <domain includeSubdomains="true">kingnettechov.crl.certum.pl</domain>
     <domain includeSubdomains="true">kr.crl.digicert.com</domain>
     <domain includeSubdomains="true">lh2.crl.certum.pl</domain>
+    <domain includeSubdomains="true">lhpldvtlsg3r31ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">namecheap.crl.sectigo.com</domain>
     <domain includeSubdomains="true">nazwassldvtlsg2e29ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">nazwassldvtlsg2r29ca.crl.certum.pl</domain>
@@ -272,6 +279,7 @@
     <domain includeSubdomains="true">netartssldvtlsg2e31ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">nijimo.crl.sectigo.com</domain>
     <domain includeSubdomains="true">nyalabscadv.crl.certum.pl</domain>
+    <domain includeSubdomains="true">nyalabsdvtlsg3r31ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">nyatworkdv.crl.certum.pl</domain>
     <domain includeSubdomains="true">omitsecurity.crl.sectigo.com</domain>
     <domain includeSubdomains="true">onesign.crl.sectigo.com</domain>
@@ -304,6 +312,7 @@
     <domain includeSubdomains="true">rootca.twca.com.tw</domain>
     <domain includeSubdomains="true">rootglobaldv.crl.certum.pl</domain>
     <domain includeSubdomains="true">rootnetworksdv2.crl.certum.pl</domain>
+    <domain includeSubdomains="true">securesitedvtlsg3r31ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">shenzhendv.crl.certum.pl</domain>
     <domain includeSubdomains="true">shenzhenev.crl.certum.pl</domain>
     <domain includeSubdomains="true">shenzhenov.crl.certum.pl</domain>
@@ -322,6 +331,8 @@
     <domain includeSubdomains="true">ssllimiteddv.crl.certum.pl</domain>
     <domain includeSubdomains="true">sslserver.twca.com.tw</domain>
     <domain includeSubdomains="true">subca.crl.certum.pl</domain>
+    <domain includeSubdomains="true">szcadvtlsg3r31ca.crl.certum.pl</domain>
+    <domain includeSubdomains="true">szcaovtlsg3r31ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">titrust.crl.sectigo.com</domain>
     <domain includeSubdomains="true">tlcdvtlsr34g2ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">tlcevtlsr34g2ca.crl.certum.pl</domain>
