@@ -58,6 +58,26 @@ pub trait BuilderVerifierExt {
     fn with_platform_verifier(
         self,
     ) -> Result<ConfigBuilder<ClientConfig, WantsClientCert>, rustls::Error>;
+
+    /// Configures the `ClientConfig` with the platform verifier
+    /// and the extra root certificates to trust.
+    ///
+    /// ```rust
+    /// use rustls::ClientConfig;
+    /// use rustls_platform_verifier::BuilderVerifierExt;
+    ///
+    /// let roots = vec![/* ... */];
+    ///
+    /// let config = ClientConfig::builder()
+    ///     .with_platform_verifier_and_extra_roots(roots)
+    ///     .unwrap()
+    ///     .with_no_client_auth();
+    /// ```
+    #[cfg(not(target_os = "android"))]
+    fn with_platform_verifier_and_extra_roots(
+        self,
+        roots: impl IntoIterator<Item = rustls::pki_types::CertificateDer<'static>>,
+    ) -> Result<ConfigBuilder<ClientConfig, WantsClientCert>, rustls::Error>;
 }
 
 impl BuilderVerifierExt for ConfigBuilder<ClientConfig, WantsVerifier> {
@@ -65,6 +85,17 @@ impl BuilderVerifierExt for ConfigBuilder<ClientConfig, WantsVerifier> {
         self,
     ) -> Result<ConfigBuilder<ClientConfig, WantsClientCert>, rustls::Error> {
         let verifier = Verifier::new(self.crypto_provider().clone())?;
+        Ok(self
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(verifier)))
+    }
+
+    #[cfg(not(target_os = "android"))]
+    fn with_platform_verifier_and_extra_roots(
+        self,
+        roots: impl IntoIterator<Item = rustls::pki_types::CertificateDer<'static>>,
+    ) -> Result<ConfigBuilder<ClientConfig, WantsClientCert>, rustls::Error> {
+        let verifier = Verifier::new_with_extra_roots(roots, self.crypto_provider().clone())?;
         Ok(self
             .dangerous()
             .with_custom_certificate_verifier(Arc::new(verifier)))
@@ -78,15 +109,40 @@ pub trait ConfigVerifierExt {
     /// ```rust
     /// use rustls::ClientConfig;
     /// use rustls_platform_verifier::ConfigVerifierExt;
-    /// let config = ClientConfig::with_platform_verifier();
+    /// let config = ClientConfig::with_platform_verifier().unwrap();
     /// ```
     fn with_platform_verifier() -> Result<ClientConfig, rustls::Error>;
+
+    /// Build a [`ClientConfig`] with the platform verifier, the default `CryptoProvider`,
+    /// and the extra root certificates to trust.
+    ///
+    /// ```rust
+    /// use rustls::ClientConfig;
+    /// use rustls_platform_verifier::ConfigVerifierExt;
+    ///
+    /// let roots = vec![/* ... */];
+    ///
+    /// let config = ClientConfig::with_platform_verifier_and_extra_roots(roots).unwrap();
+    /// ```
+    #[cfg(not(target_os = "android"))]
+    fn with_platform_verifier_and_extra_roots(
+        roots: impl IntoIterator<Item = rustls::pki_types::CertificateDer<'static>>,
+    ) -> Result<ClientConfig, rustls::Error>;
 }
 
 impl ConfigVerifierExt for ClientConfig {
     fn with_platform_verifier() -> Result<ClientConfig, rustls::Error> {
         Ok(ClientConfig::builder()
             .with_platform_verifier()?
+            .with_no_client_auth())
+    }
+
+    #[cfg(not(target_os = "android"))]
+    fn with_platform_verifier_and_extra_roots(
+        roots: impl IntoIterator<Item = rustls::pki_types::CertificateDer<'static>>,
+    ) -> Result<ClientConfig, rustls::Error> {
+        Ok(ClientConfig::builder()
+            .with_platform_verifier_and_extra_roots(roots)?
             .with_no_client_auth())
     }
 }
