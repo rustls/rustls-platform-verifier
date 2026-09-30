@@ -23,9 +23,9 @@ use jni::errors::Error as JNIError;
 use jni::objects::{Global, JClass, JClassLoader, JObject};
 use jni::strings::JNIStr;
 use jni::{jni_sig, jni_str, Env, JavaVM};
-use once_cell::sync::OnceCell;
+use std::sync::OnceLock;
 
-static GLOBAL: OnceCell<GlobalStorage> = OnceCell::new();
+static GLOBAL: OnceLock<GlobalStorage> = OnceLock::new();
 
 /// A layer to access the Android runtime which is hosting the current
 /// application process.
@@ -95,23 +95,25 @@ fn global() -> &'static GlobalStorage {
 /// This method will setup and store an environment locally. This is useful if nothing else in your
 /// application needs to access the Android runtime.
 pub fn init_with_env(env: &mut Env, context: JObject) -> Result<(), JNIError> {
-    GLOBAL.get_or_try_init(|| -> Result<_, JNIError> {
-        let loader = env
-            .call_method(
-                &context,
-                jni_str!("getClassLoader"),
-                jni_sig!(() -> JClassLoader),
-                &[],
-            )?
-            .l()?;
-        let loader = env.cast_local::<JClassLoader>(loader)?;
+    if GLOBAL.get().is_some() {
+        return Ok(());
+    }
 
-        Ok(GlobalStorage::Internal {
-            java_vm: env.get_java_vm()?,
-            context: env.new_global_ref(context)?,
-            loader: env.new_global_ref(loader)?,
-        })
-    })?;
+    let loader = env
+        .call_method(
+            &context,
+            jni_str!("getClassLoader"),
+            jni_sig!(() -> JClassLoader),
+            &[],
+        )?
+        .l()?;
+    let loader = env.cast_local::<JClassLoader>(loader)?;
+
+    let _ = GLOBAL.set(GlobalStorage::Internal {
+        java_vm: env.get_java_vm()?,
+        context: env.new_global_ref(context)?,
+        loader: env.new_global_ref(loader)?,
+    });
     Ok(())
 }
 
@@ -225,7 +227,7 @@ where
 /// Loads and caches a class on first use
 pub(super) struct CachedClass {
     name: &'static JNIStr,
-    class: OnceCell<Global<JClass<'static>>>,
+    class: OnceLock<Global<JClass<'static>>>,
 }
 
 impl CachedClass {
@@ -233,17 +235,20 @@ impl CachedClass {
     pub(super) const fn new(name: &'static JNIStr) -> Self {
         Self {
             name,
-            class: OnceCell::new(),
+            class: OnceLock::new(),
         }
     }
 
     /// Gets the cached class reference, loaded on first use
     pub(super) fn get(&self, cx: &mut LocalContext) -> Result<&JClass<'static>, Error> {
-        let class = self.class.get_or_try_init(|| -> Result<_, Error> {
-            let class = cx.load_class(self.name)?;
-
-            Ok(cx.env.new_global_ref(class)?)
-        })?;
+        let class = self.class.get().map_or_else(
+            || -> Result<_, Error> {
+                let class = cx.load_class(self.name)?;
+                let class = cx.env.new_global_ref(class)?;
+                Ok(self.class.get_or_init(|| class))
+            },
+            Ok,
+        )?;
 
         Ok(class)
     }
