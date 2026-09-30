@@ -1191,7 +1191,6 @@ dependencies = [
  "core-foundation-sys",
  "jni",
  "log",
- "once_cell",
  "rustls",
  "rustls-native-certs",
  "rustls-platform-verifier-android 0.2.0",
