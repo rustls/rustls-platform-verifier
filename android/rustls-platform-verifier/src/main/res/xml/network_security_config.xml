@@ -46,6 +46,7 @@
     <domain includeSubdomains="true">certumdvtlsg2e39ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">certumdvtlsg2r39ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">certumdvtlsg3e39ca.crl.certum.pl</domain>
+    <domain includeSubdomains="true">certumdvtlsg3r39ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">certumevtlsg2e39ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">certumevtlsg2r39ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">certumevtlsg3e39ca.crl.certum.pl</domain>
@@ -159,6 +160,7 @@
     <domain includeSubdomains="true">crl.sectigo.com</domain>
     <domain includeSubdomains="true">crl.sectigochina.com</domain>
     <domain includeSubdomains="true">crl.serverid.telesec.de</domain>
+    <domain includeSubdomains="true">crl.ssl.com</domain>
     <domain includeSubdomains="true">crl.starfieldtech.com</domain>
     <domain includeSubdomains="true">crl.swisssign.ch</domain>
     <domain includeSubdomains="true">crl.trust-provider.cn</domain>
@@ -321,6 +323,7 @@
     <domain includeSubdomains="true">shuidiev.crl.certum.pl</domain>
     <domain includeSubdomains="true">shuidiov.crl.certum.pl</domain>
     <domain includeSubdomains="true">soomadv.crl.certum.pl</domain>
+    <domain includeSubdomains="true">soomadvtlsg3r31ca.crl.certum.pl</domain>
     <domain includeSubdomains="true">ssl2ca2016-crl1.e-szigno.hu</domain>
     <domain includeSubdomains="true">ssl2ca2016-crl2.e-szigno.hu</domain>
     <domain includeSubdomains="true">ssl2ca2016-crl3.e-szigno.hu</domain>
