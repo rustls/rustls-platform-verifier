@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.net.http.X509TrustManagerExtensions
 import android.os.Build
+import android.os.Looper
 import android.util.Log
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -95,6 +96,9 @@ internal object CertificateVerifier {
     // -- Test only --
     // Ideally, all of this will be optimized out at compile time due to not being accessed
     // in release builds.
+
+    @Volatile
+    var expectedVerificationThread: Thread? = null
 
     @get:Synchronized
     private val mockKeystore: KeyStore = KeyStore.getInstance(KeyStore.getDefaultType())
@@ -188,6 +192,17 @@ internal object CertificateVerifier {
         time: Long,
         certChain: Array<ByteArray>,
     ): VerificationResult {
+        if (BuildConfig.TEST) {
+            check(Looper.myLooper() != Looper.getMainLooper()) {
+                "Certificate verification must run off the main thread"
+            }
+            expectedVerificationThread?.let { expected ->
+                check(Thread.currentThread() === expected) {
+                    "Background verification must stay on the calling thread"
+                }
+            }
+        }
+
         // Convert the array of (supposedly) DER bytes into certificates.
         val certificateChain = mutableListOf<X509Certificate>()
         certChain.forEach { certBytes ->

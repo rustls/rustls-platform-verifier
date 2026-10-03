@@ -1,6 +1,7 @@
 package org.rustls.platformverifier
 
 import android.content.Context
+import android.os.Looper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
@@ -8,6 +9,8 @@ import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.FutureTask
+import kotlin.concurrent.thread
 
 private const val SUCCESS_MARKER: String = "success"
 private const val FAILURE_MSG: String = "A test failed. Check the logs above for Rust panics."
@@ -33,9 +36,47 @@ class CertificateVerifierTests {
 
     @Test
     fun runMockTestSuite() {
+        assertEquals(null, Looper.myLooper())
+        runMockTestSuiteOnCallingThread()
+    }
+
+    private fun runMockTestSuiteOnCallingThread() {
+        assertTrue(Looper.myLooper() != Looper.getMainLooper())
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val result = mockTests(context)
-        assertEquals(FAILURE_MSG, SUCCESS_MARKER, result)
+        CertificateVerifier.expectedVerificationThread = Thread.currentThread()
+        try {
+            val result = mockTests(context)
+            assertEquals(FAILURE_MSG, SUCCESS_MARKER, result)
+        } finally {
+            CertificateVerifier.expectedVerificationThread = null
+        }
+    }
+
+    @Test
+    fun runMockTestSuiteOnBackgroundThreadWithLooper() {
+        val task = FutureTask {
+            Looper.prepare()
+            assertTrue(Looper.myLooper() != null)
+            runMockTestSuiteOnCallingThread()
+        }
+        val worker = thread { task.run() }
+        try {
+            task.get()
+        } finally {
+            worker.join()
+        }
+    }
+
+    @Test
+    fun runMockTestSuiteOnMainThread() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            assertEquals(Looper.getMainLooper(), Looper.myLooper())
+            // The test build of CertificateVerifier checks that JNI verification runs off the main
+            // thread, even when the Rust caller is on it.
+            val result = mockTests(instrumentation.targetContext)
+            assertEquals(FAILURE_MSG, SUCCESS_MARKER, result)
+        }
     }
 
     @Test

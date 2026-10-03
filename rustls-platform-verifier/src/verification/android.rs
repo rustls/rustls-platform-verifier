@@ -12,9 +12,10 @@ use rustls::{
     CertificateError, DigitallySignedStruct, Error as TlsError, OtherError, SignatureScheme,
 };
 use std::sync::Arc;
+use std::thread;
 
 use super::{log_server_cert, ALLOWED_EKUS};
-use crate::android::{with_context, CachedClass};
+use crate::android::{is_main_thread, with_context, CachedClass};
 
 static CERT_VERIFIER_CLASS: CachedClass =
     CachedClass::new(jni_str!("org.rustls.platformverifier.CertificateVerifier"));
@@ -293,7 +294,35 @@ impl ServerCertVerifier for Verifier {
             None
         };
 
-        match self.verify_certificate(end_entity, intermediates, server_name, ocsp_data, now) {
+        let verify =
+            || self.verify_certificate(end_entity, intermediates, server_name, ocsp_data, now);
+
+        // JNI calls run on the calling thread. Android's revocation checks can perform network
+        // I/O, so move them to a worker thread when called on Android's main thread to avoid
+        // NetworkOnMainThreadException.
+        let result = match is_main_thread() {
+            Ok(false) => verify(),
+            Ok(true) => thread::scope(|scope| {
+                let worker = thread::Builder::new()
+                    .name("rustls-platform-verifier".into())
+                    .spawn_scoped(scope, verify)
+                    .map_err(|e| {
+                        TlsError::General(format!(
+                            "failed to spawn certificate verification thread: {e}"
+                        ))
+                    })?;
+
+                match worker.join() {
+                    Ok(result) => result,
+                    Err(panic) => std::panic::resume_unwind(panic),
+                }
+            }),
+            Err(e) => Err(TlsError::General(format!(
+                "failed to determine Android verification thread: {e:?}"
+            ))),
+        };
+
+        match result {
             Ok(()) => Ok(rustls::client::danger::ServerCertVerified::assertion()),
             Err(e) => {
                 // This error only tells us what the system errored with, so it doesn't leak anything

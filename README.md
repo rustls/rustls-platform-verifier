@@ -115,6 +115,9 @@ Some manual setup is required, outside of `cargo`, to use this crate on Android.
 use Android's certificate verifier, the crate needs to call into the JVM. A small Kotlin
 component must be included in your app's build to support `rustls-platform-verifier`.
 
+Certificate verification runs on the calling thread unless it is Android's main thread. In that case, verification runs on a Rust worker thread because Android's revocation checks may perform network I/O. Verification is still synchronous, because the calling thread waits for the result.
+Run TLS handshakes on a background thread or dispatcher to keep the Android UI responsive.
+
 #### Gradle Setup
 
 `rustls-platform-verifier` distributes the required native components in a Maven-compatible format via GitHub, but the project must be setup to locate them

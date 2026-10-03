@@ -204,6 +204,34 @@ impl<'env> LocalContext<'_, 'env> {
     }
 }
 
+/// Checks whether the current thread is Android's main thread.
+pub(super) fn is_main_thread() -> Result<bool, Error> {
+    global().vm().attach_current_thread_for_scope(|env| {
+        let looper = env.find_class(jni_str!("android/os/Looper"))?;
+        let current = env
+            .call_static_method(
+                &looper,
+                jni_str!("myLooper"),
+                jni_sig!(() -> android.os.Looper),
+                &[],
+            )?
+            .l()?;
+        if current.is_null() {
+            return Ok(false);
+        }
+
+        let main = env
+            .call_static_method(
+                &looper,
+                jni_str!("getMainLooper"),
+                jni_sig!(() -> android.os.Looper),
+                &[],
+            )?
+            .l()?;
+        Ok(env.is_same_object(current, main)?)
+    })
+}
+
 /// Borrow the Android application context and execute the closure
 /// `with_context, ensuring locals are properly freed and exceptions
 /// are cleared.
