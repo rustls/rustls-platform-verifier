@@ -7,6 +7,7 @@ repository = "https://github.com/rustls/rustls-platform-verifier"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 rust-version = "1.85"
+include = ["Cargo.toml", "Cargo.lock", "README.md", "LICENSE-APACHE", "LICENSE-MIT", "src/**/*.rs", "!src/tests/"]
 
 [lib]
 name = "rustls_platform_verifier"
