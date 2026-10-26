@@ -87,7 +87,6 @@
     <domain includeSubdomains="true">crl.digicert.eu</domain>
     <domain includeSubdomains="true">crl.e-szigno.hu</domain>
     <domain includeSubdomains="true">crl.e2m01.amazontrust.com</domain>
-    <domain includeSubdomains="true">crl.e2m01.eu.amazontrust.com</domain>
     <domain includeSubdomains="true">crl.e2m02.amazontrust.com</domain>
     <domain includeSubdomains="true">crl.e2m03.amazontrust.com</domain>
     <domain includeSubdomains="true">crl.e2m04.amazontrust.com</domain>
@@ -100,7 +99,6 @@
     <domain includeSubdomains="true">crl.e2s20.amazontrust.com</domain>
     <domain includeSubdomains="true">crl.e2s21.amazontrust.com</domain>
     <domain includeSubdomains="true">crl.e3m01.amazontrust.com</domain>
-    <domain includeSubdomains="true">crl.e3m01.eu.amazontrust.com</domain>
     <domain includeSubdomains="true">crl.e3m02.amazontrust.com</domain>
     <domain includeSubdomains="true">crl.e3m03.amazontrust.com</domain>
     <domain includeSubdomains="true">crl.e3m04.amazontrust.com</domain>
@@ -131,7 +129,6 @@
     <domain includeSubdomains="true">crl.r1001.amazontrust.com</domain>
     <domain includeSubdomains="true">crl.r2001.amazontrust.com</domain>
     <domain includeSubdomains="true">crl.r2m01.amazontrust.com</domain>
-    <domain includeSubdomains="true">crl.r2m01.eu.amazontrust.com</domain>
     <domain includeSubdomains="true">crl.r2m02.amazontrust.com</domain>
     <domain includeSubdomains="true">crl.r2m03.amazontrust.com</domain>
     <domain includeSubdomains="true">crl.r2m04.amazontrust.com</domain>
@@ -282,7 +279,6 @@
     <domain includeSubdomains="true">nijimo.crl.sectigo.com</domain>
     <domain includeSubdomains="true">nyalabscadv.crl.certum.pl</domain>
     <domain includeSubdomains="true">nyalabsdvtlsg3r31ca.crl.certum.pl</domain>
-    <domain includeSubdomains="true">nyatworkdv.crl.certum.pl</domain>
     <domain includeSubdomains="true">omitsecurity.crl.sectigo.com</domain>
     <domain includeSubdomains="true">onesign.crl.sectigo.com</domain>
     <domain includeSubdomains="true">osslca2016-crl1.e-szigno.hu</domain>
