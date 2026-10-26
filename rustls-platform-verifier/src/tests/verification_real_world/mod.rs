@@ -48,7 +48,7 @@ use crate::tests::{assert_cert_error_eq, test_provider};
 use crate::Verifier;
 
 // This is the certificate chain presented by one server for
-// `aws.amazon.com` when this test was updated 2025-08-13.
+// `aws.amazon.com` when this test was updated 2026-10-26.
 //
 // Use this to template view the certificate using OpenSSL:
 // ```sh
@@ -72,8 +72,8 @@ fn valid_aws_chain_names() -> Vec<String> {
     const VALID_AWS_NAMES: &[&str] = &[
         "aws.amazon.com",
         "aws-us-west-2.amazon.com",
-        "www.aws.amazon.com",
         "1.aws-lbr.amazonaws.com",
+        "www.aws.amazon.com",
         "amazonaws-china.com",
         "www.amazonaws-china.com",
         "aws-us-east-1.amazon.com",
@@ -285,6 +285,6 @@ real_world_test_cases! {
 /// we know the test certificates are valid. This must be updated if the mock certificates
 /// are regenerated.
 pub(crate) fn verification_time() -> pki_types::UnixTime {
-    // Wed, 12 Aug 2026 10:23 UTC
-    pki_types::UnixTime::since_unix_epoch(Duration::from_secs(1_786_530_173))
+    // Mon, 26 Oct 2026 10:45 UTC
+    pki_types::UnixTime::since_unix_epoch(Duration::from_secs(1_793_011_519))
 }
