@@ -191,7 +191,7 @@ func generateInt(intName string, serial int64, now time.Time, caKey crypto.Signe
 			Organization: []string{intName},
 		},
 		NotBefore:             now.Add(-OneDay),
-		NotAfter:              now.Add(OneYear),
+		NotAfter:              now.Add(2 * OneYear),
 		IsCA:                  true,
 		KeyUsage:              x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
@@ -221,7 +221,7 @@ func generateRoot(name string, now time.Time) (crypto.Signer, error) {
 			Organization: []string{name},
 		},
 		NotBefore:             now.Add(-OneDay),
-		NotAfter:              now.Add(OneYear),
+		NotAfter:              now.Add(2 * OneYear),
 		IsCA:                  true,
 		KeyUsage:              x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
@@ -257,7 +257,7 @@ func generateOCSPResponse(name string, status int, now time.Time, caKey crypto.S
 		Status:       status,
 		SerialNumber: eeCert.SerialNumber,
 		ThisUpdate:   thisUpdate,
-		NextUpdate:   thisUpdate.Add(1 * OneYear),
+		NextUpdate:   thisUpdate.Add(2 * OneYear),
 	}
 
 	if status == ocsp.Revoked {
