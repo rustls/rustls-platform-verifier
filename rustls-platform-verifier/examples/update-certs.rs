@@ -1,6 +1,8 @@
-use std::{fs, io::Write, net::TcpStream, sync::Arc};
+use std::{fs, io::Write, iter, net::TcpStream, sync::Arc};
 
-use rustls::{pki_types::ServerName, ClientConfig, ClientConnection, RootCertStore, Stream};
+use rustls::crypto::Identity;
+use rustls::{pki_types::ServerName, ClientConfig, RootCertStore, VecInput};
+use rustls_util::Stream;
 use webpki_root_certs::TLS_SERVER_ROOT_CERTS;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -8,28 +10,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (_, ignored) = roots.add_parsable_certificates(TLS_SERVER_ROOT_CERTS.iter().cloned());
     assert_eq!(ignored, 0, "{ignored} root certificates were ignored");
     let config = Arc::new(
-        ClientConfig::builder()
+        ClientConfig::builder(Arc::new(rustls_ring::DEFAULT_PROVIDER.clone()))
             .with_root_certificates(roots)
-            .with_no_client_auth(),
+            .with_no_client_auth()?,
     );
 
     for &host in HOSTS {
-        let server_name = ServerName::try_from(host)?;
-        let mut conn = ClientConnection::new(config.clone(), server_name)?;
+        let server_name = ServerName::try_from(host.to_owned())?;
+        let mut output = Vec::new();
+        let mut conn = config.connect(server_name).build(&mut output)?;
         let mut sock = TcpStream::connect((host, 443))?;
-        let mut stream = Stream::new(&mut conn, &mut sock);
+        let mut input = VecInput::default();
+        let mut received_plaintext = Vec::new();
+        let mut stream = Stream::new(
+            &mut input,
+            &mut received_plaintext,
+            &mut output,
+            &mut conn,
+            &mut sock,
+        );
 
         eprintln!("connecting to {host}...");
-        if let Err(err) = stream.write_all(b"GET / HTTP/1.1\r\n\r\n") {
-            eprintln!("failed to write to {host}: {err}");
-        }
+        stream.write_all(format!("GET / HTTP/1.1\r\nHost: {host}\r\n\r\n").as_bytes())?;
+        stream.flush()?;
 
-        let Some(certs) = conn.peer_certificates() else {
+        let Some(Identity::X509(certs)) = stream
+            .conn
+            .peer_identity()
+            .map(|identity| identity.identity())
+        else {
             eprintln!("no certificates received for {host}");
             continue;
         };
 
-        for (i, der) in certs.iter().enumerate() {
+        for (i, der) in iter::once(&certs.end_entity)
+            .chain(certs.intermediates.iter())
+            .enumerate()
+        {
             let host_name = host.replace('.', "_");
             let fname = format!(
                 "{}/src/tests/verification_real_world/{host_name}_valid_{}.crt",
