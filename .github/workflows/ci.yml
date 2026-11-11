@@ -152,6 +152,29 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: cargo test --manifest-path android-release-support/Cargo.toml --test codegen -- --ignored
 
+  test_upki:
+    name: "Test (upki)"
+    runs-on: ubuntu-latest
+    # upki is packaged from Ubuntu 26.10, for which there is no GitHub-hosted runner.
+    container: ubuntu:26.10
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential ca-certificates curl git upki
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Fetch upki revocation data
+        run: runuser -u upki -g upki -- upki fetch
+
+      - name: Test
+        run: cargo test -p rustls-platform-verifier --features upki
+
   test_android:
     name: "Test (Android)"
     runs-on: ubuntu-latest

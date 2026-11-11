@@ -23,7 +23,7 @@ This library supports the following platforms and flows:
 | macOS (10.14+) | macOS platform roots and keychain certificate | macOS `Security.framework`           | Yes                |
 | iOS            | iOS platform roots and keychain certificates  | iOS `Security.framework`             | Yes                |
 | Android        | Android System Trust Store                    | Android Trust Manager                | Sometimes[^1]      |
-| Linux          | System CA bundle, or user-provided certs[^3]  | webpki                               | No[^2]             |
+| Linux          | System CA bundle, or user-provided certs[^3]  | webpki                               | No[^2] / Yes[^4]   |
 | WASM           | webpki roots                                  | webpki                               | No[^2]             |
 
 [^1]: On Android, revocation checking requires API version >= 24 (e.g. at least Android 7.0, August 2016).
@@ -40,11 +40,15 @@ information.
 Users may wish to augment these certificates with [webpki-roots] using [`Verifier::new_with_extra_roots`] in case
 a system CA bundle is unavailable.
 
+[^4]: Enable the `upki` crate feature to use [upki] to do revocation checking of end-entity certificates.  The
+`upki` system component needs to be installed (it is available, for example, on Ubuntu 26.10).
+
 [`ServerCertVerifierBuilder`]: https://docs.rs/rustls/latest/rustls/client/struct.ServerCertVerifierBuilder.html
 [`Verifier::new_with_extra_roots`]: https://docs.rs/rustls-platform-verifier/latest/rustls_platform_verifier/struct.Verifier.html#method.new_with_extra_roots
 [rustls-native-certs]: https://github.com/rustls/rustls-native-certs
 [openssl-probe]: https://github.com/alexcrichton/openssl-probe
 [webpki-roots]: https://github.com/rustls/webpki-roots
+[upki]: https://github.com/rustls/upki
 
 ## Deployment Considerations
 

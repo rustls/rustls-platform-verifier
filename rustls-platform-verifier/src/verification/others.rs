@@ -2,11 +2,10 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
-use rustls::client::WebPkiServerVerifier;
 use rustls::pki_types;
 use rustls::{
     crypto::CryptoProvider, CertificateError, DigitallySignedStruct, Error as TlsError, OtherError,
-    SignatureScheme,
+    RootCertStore, SignatureScheme,
 };
 
 use super::log_server_cert;
@@ -17,7 +16,7 @@ pub struct Verifier {
     // We currently keep one set of certificates per-verifier so that
     // recreating the verifier will pull fresh root certificates from disk,
     // picking up on any changes that might have been made since.
-    inner: Arc<WebPkiServerVerifier>,
+    inner: Arc<dyn ServerCertVerifier>,
 }
 
 impl Verifier {
@@ -58,7 +57,7 @@ impl Verifier {
         test_root: Option<pki_types::CertificateDer<'static>>,
         crypto_provider: Arc<CryptoProvider>,
     ) -> Result<Self, TlsError> {
-        let mut root_store = rustls::RootCertStore::empty();
+        let mut root_store = RootCertStore::empty();
 
         // For testing only: load fake root cert, instead of native/WebPKI roots
         #[cfg(any(test, feature = "ffi-testing", feature = "dbg"))]
@@ -66,7 +65,7 @@ impl Verifier {
             if let Some(test_root) = test_root {
                 root_store.add(test_root)?;
                 return Ok(Self {
-                    inner: WebPkiServerVerifier::builder_with_provider(
+                    inner: rustls::client::WebPkiServerVerifier::builder_with_provider(
                         root_store.into(),
                         crypto_provider.clone(),
                     )
@@ -118,10 +117,32 @@ impl Verifier {
         };
 
         Ok(Self {
-            inner: WebPkiServerVerifier::builder_with_provider(root_store.into(), crypto_provider)
-                .build()
-                .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))?,
+            inner: Self::create_verifier(root_store.into(), crypto_provider)?,
         })
+    }
+
+    #[cfg(feature = "upki")]
+    fn create_verifier(
+        root_store: Arc<RootCertStore>,
+        crypto_provider: Arc<CryptoProvider>,
+    ) -> Result<Arc<impl ServerCertVerifier>, TlsError> {
+        rustls_upki::ServerVerifier::new(
+            rustls_upki::Policy::default(),
+            None,
+            root_store,
+            crypto_provider,
+        )
+        .map(Arc::new)
+    }
+
+    #[cfg(not(feature = "upki"))]
+    fn create_verifier(
+        root_store: Arc<RootCertStore>,
+        crypto_provider: Arc<CryptoProvider>,
+    ) -> Result<Arc<impl ServerCertVerifier>, TlsError> {
+        rustls::client::WebPkiServerVerifier::builder_with_provider(root_store, crypto_provider)
+            .build()
+            .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))
     }
 }
 
